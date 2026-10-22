@@ -5,12 +5,12 @@ import (
 	"os/exec"
 )
 
-// Notify gửi desktop notification (qua notify-send trên linux — Quickstart;
-// sẽ sang GNotification/D-Bus trực tiếp ở phase sau).
+// Notify sends a desktop notification (via notify-send on linux — Quickstart;
+// switches to GNotification/D-Bus directly in a later phase).
 func Notify(title, body string) error {
 	path, err := exec.LookPath("notify-send")
 	if err != nil {
-		return errors.New("hfd: Notify cần libnotify-bin (notify-send) hoặc dùng phase sau")
+		return errors.New("hfd: Notify requires libnotify-bin (notify-send), or a later phase")
 	}
 	if body == "" {
 		return exec.Command(path, title).Run()

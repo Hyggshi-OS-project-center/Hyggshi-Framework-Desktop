@@ -1,10 +1,10 @@
 package hfd
 
-// buildBindingsSchema duyệt metadata của từng BindTyped bằng reflect và sinh
-// một node graph JSON mô tả kiểu In/Out, để CLI viết bindings *.d.ts type-safe.
+// buildBindingsSchema walks the metadata of each BindTyped via reflect and builds
+// a JSON node graph describing the In/Out types, so the CLI can emit type-safe *.d.ts bindings.
 //
-// Node graph được dùng chung với hfd-cli/src/ts-emitter.mjs — đổi format ở đây
-// thì phải đổi bên đó.
+// The node graph format is shared with hfd-cli/src/ts-emitter.mjs — if you change
+// the format here, you must change it there too.
 
 import (
 	"encoding/json"
@@ -18,14 +18,14 @@ var timeType = reflect.TypeOf(time.Time{})
 type schemaNode struct {
 	// Kind: struct | array | map | ptr | string | number | bool | any | cyclic
 	Kind string `json:"kind"`
-	// Name tên Go type (struct có tên hoặc type được đặt tên như `type Status string`).
+	// Name is the Go type name (a named struct or a named type such as `type Status string`).
 	Name string `json:"name,omitempty"`
-	// Pkg package của type đặt tên (rỗng nếu builtin/anonymous).
+	// Pkg is the package of the named type (empty for builtin/anonymous).
 	Pkg  string      `json:"pkg,omitempty"`
 	Elem *schemaNode `json:"elem,omitempty"` // array/ptr
 	Key  *schemaNode `json:"key,omitempty"`  // map
 	Val  *schemaNode `json:"val,omitempty"`  // map
-	// Fields của struct.
+	// Fields of the struct.
 	Fields []schemaField `json:"fields,omitempty"`
 }
 
@@ -44,7 +44,7 @@ type bindingsSchema struct {
 	Bindings []bindingSchema `json:"bindings"`
 }
 
-// buildBindingsSchema in JSON stdout cho CLI.
+// buildBindingsSchema prints the JSON to stdout for the CLI.
 func buildBindingsSchema() []byte {
 	typedMu.Lock()
 	entries := make([]typedEntry, len(typedEntries))
@@ -68,8 +68,8 @@ func buildBindingsSchema() []byte {
 	return append(data, '\n')
 }
 
-// walkSchemaType chuyển reflect.Type → schemaNode. `seen` chặn struct tự tham
-// chiếu vô hạn (cycle → kind "cyclic", CLI sẽ emit unknown).
+// walkSchemaType converts a reflect.Type → schemaNode. `seen` prevents infinite
+// self-referencing structs (cycle → kind "cyclic", the CLI emits unknown).
 func walkSchemaType(t reflect.Type, seen map[reflect.Type]bool) *schemaNode {
 	switch t.Kind() {
 	case reflect.Struct:
@@ -86,7 +86,7 @@ func walkSchemaType(t reflect.Type, seen map[reflect.Type]bool) *schemaNode {
 			if !f.IsExported() {
 				continue
 			}
-			// struct nhúng (embedded) không có json tag → promote field.
+			// embedded struct (no json tag) → promote fields.
 			if f.Anonymous && f.Tag.Get("json") == "" && f.Type.Kind() == reflect.Struct {
 				inner := walkSchemaType(f.Type, seen)
 				n.Fields = append(n.Fields, inner.Fields...)
@@ -95,7 +95,7 @@ func walkSchemaType(t reflect.Type, seen map[reflect.Type]bool) *schemaNode {
 			name := f.Name
 			if tag, ok := f.Tag.Lookup("json"); ok {
 				name = parseJSONName(tag, f.Name)
-				if name == "" { // json:"-" → bỏ qua
+				if name == "" { // json:"-" → skip
 					continue
 				}
 			}
@@ -121,7 +121,7 @@ func walkSchemaType(t reflect.Type, seen map[reflect.Type]bool) *schemaNode {
 
 	case reflect.String:
 		if t.Name() != "" && t.PkgPath() != "" {
-			// type đặt tên thật (vd `type Status string`) — không phải builtin.
+			// a real named type (e.g. `type Status string`) — not builtin.
 			return &schemaNode{Kind: "string", Name: t.Name(), Pkg: t.PkgPath()}
 		}
 		return &schemaNode{Kind: "string"}
@@ -143,12 +143,12 @@ func walkSchemaType(t reflect.Type, seen map[reflect.Type]bool) *schemaNode {
 	case reflect.Interface:
 		return &schemaNode{Kind: "any"}
 
-	default: // chan, func, complex… không map được qua JSON
+	default: // chan, func, complex… cannot be mapped through JSON
 		return &schemaNode{Kind: "any", Name: t.Name(), Pkg: t.PkgPath()}
 	}
 }
 
-// parseJSONName đọc json tag: `,omitempty`… biến thể.
+// parseJSONName parses the json tag: `,omitempty`… variants.
 func parseJSONName(tag, fallback string) string {
 	for i := 0; i < len(tag); i++ {
 		if tag[i] == ',' {
@@ -157,7 +157,7 @@ func parseJSONName(tag, fallback string) string {
 		}
 	}
 	if tag == "" {
-		return fallback // json:"" → giữ tên field gốc
+		return fallback // json:"" → keep the original field name
 	}
 	return tag
 }

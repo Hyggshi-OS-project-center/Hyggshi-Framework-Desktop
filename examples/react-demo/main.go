@@ -35,9 +35,9 @@ type App struct{}
 
 func (a *App) Greet(args GreetArgs) (GreetResult, error) {
 	if args.Name == "" {
-		args.Name = "bạn"
+		args.Name = "you"
 	}
-	return GreetResult{Message: "Xin chào " + args.Name + " từ HFD!"}, nil
+	return GreetResult{Message: "Hello " + args.Name + " from HFD!"}, nil
 }
 
 func (a *App) SysInfo(_ SysInfoArgs) (SysInfoResult, error) {

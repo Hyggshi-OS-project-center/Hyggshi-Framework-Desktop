@@ -16,8 +16,8 @@ import (
 //go:embed all:frontend/dist
 var distFS embed.FS
 
-// ---- Typed DTOs — đây là nguồn gốc codegen bảng bindings.d.ts ------------
-// Tên field JSON là hợp đồng với frontend, không phải tên Go field.
+// ---- Typed DTOs — this is the source of the bindings.d.ts codegen table ----
+// The JSON field names are the contract with the frontend, not the Go field names.
 
 type GreetArgs struct {
 	Name string `json:"name"`
@@ -39,7 +39,7 @@ type SysInfoResult struct {
 }
 
 type StartTickArgs struct {
-	Times int `json:"times"` // JS truyền bao nhiêu tick muốn phát
+	Times int `json:"times"` // JS says how many ticks to fire
 }
 
 type StartTickResult struct {
@@ -82,7 +82,7 @@ type NotifyArgs struct {
 }
 
 type NotifyResult struct {
-	Sent bool `json:"sent"`
+	Sent bool   `json:"sent"`
 	Err  string `json:"err,omitempty"`
 }
 
@@ -90,7 +90,7 @@ type EchoResult struct {
 	Text string `json:"text"`
 }
 
-// App chứa các method được expose qua IPC qua BindTyped.
+// App holds the methods exposed over IPC via BindTyped.
 type App struct{}
 
 func (a *App) Greet(args GreetArgs) (GreetResult, error) {
@@ -121,7 +121,7 @@ func (a *App) StartTick(args StartTickArgs) (StartTickResult, error) {
 	go func(n int) {
 		for i := 1; i <= n; i++ {
 			if err := hfd.Emit("tick", map[string]any{"count": i}); err != nil {
-				return // app đóng
+				return // app closed
 			}
 			time.Sleep(time.Second)
 		}
@@ -137,7 +137,7 @@ func (a *App) PickFile(args PickFileArgs) (PickFileResult, error) {
 		args.Title = "Pick a file"
 	}
 	path, ok, err := hfd.OpenFileDialog(hfd.FileDialogOptions{
-		Title:   args.Title,
+		Title:    args.Title,
 		StartDir: ".",
 		Filters: []hfd.FileFilter{
 			{Name: "All files", Patterns: []string{"*"}},
@@ -155,7 +155,7 @@ func (a *App) SaveText(args SaveTextArgs) (SaveTextResult, error) {
 		args.Name = "hfd-note.txt"
 	}
 	path, ok, err := hfd.SaveFileDialog(hfd.FileDialogOptions{
-		Title:       "Lưu file",
+		Title:       "Save file",
 		InitialName: args.Name,
 	})
 	if err != nil {
@@ -190,7 +190,7 @@ func (a *App) SendNotification(args NotifyArgs) (NotifyResult, error) {
 		args.Title = "HFD"
 	}
 	if err := hfd.Notify(args.Title, args.Body); err != nil {
-		return NotifyResult{Sent: false, Err: err.Error()}, nil // không fail IPC
+		return NotifyResult{Sent: false, Err: err.Error()}, nil // do not fail the IPC
 	}
 	return NotifyResult{Sent: true}, nil
 }
@@ -218,7 +218,7 @@ func main() {
 
 	app := &App{}
 
-	// BindTyped — CLI sinh bindings.d.ts type-safe từ các dòng dưới.
+	// BindTyped — the CLI generates a type-safe bindings.d.ts from the lines below.
 	hfd.BindTyped("Greet", app.Greet)
 	hfd.BindTyped("SysInfo", app.SysInfo)
 	hfd.BindTyped("StartTick", app.StartTick)
@@ -229,12 +229,12 @@ func main() {
 	hfd.BindTyped("SendNotification", app.SendNotification)
 	hfd.BindTyped("AskConfirm", app.AskConfirm)
 
-	// Tray (Phase 4): đăng ký sau khi Run khởi engine — goroutine chờ tí.
+	// Tray (Phase 4): register after Run starts the engine — goroutine waits briefly.
 	go func() {
 		for i := 0; i < 50; i++ {
 			err := hfd.SetTray(hfd.TrayOptions{
-				Tooltip: "HFD Demo — Go + GTK",
-				IconPath: "applications-system", // theme icon (hoặc file PNG)
+				Tooltip:  "HFD Demo — Go + GTK",
+				IconPath: "applications-system", // theme icon (or a PNG file)
 				Items: []hfd.TrayItem{
 					{Label: "Fire a tick", Action: "tray-tick"},
 					{Label: "About", Action: "tray-about"},
@@ -245,8 +245,8 @@ func main() {
 				log.Println("tray: registered OK")
 				return
 			}
-			// chưa Run → thử lại; lỗi khác → thôi.
-			if !strings.Contains(err.Error(), "trước khi Run") {
+			// not Run yet → retry; other error → give up.
+			if !strings.Contains(err.Error(), "before Run") {
 				log.Println("tray:", err)
 				return
 			}
@@ -260,13 +260,13 @@ func main() {
 		Height: 700,
 		Assets: assets,
 		Debug:  true,
-		CSP:          "default-src hfd://app/; script-src hfd://app/; style-src hfd://app/; img-src hfd://app/ data:; connect-src ws://localhost:5173 http://localhost:5173",
-		// Menu bar GTK — item bấm → JS event hfd.on("menu") {action}
+		CSP:    "default-src hfd://app/; script-src hfd://app/; style-src hfd://app/; img-src hfd://app/ data:; connect-src ws://localhost:5173 http://localhost:5173",
+		// GTK menu bar — item click → JS event hfd.on("menu") {action}
 		MenuLabel: "HFD",
 		Menu: []hfd.MenuItem{
-			{Label: "Mở file…", Action: "open-file"},
-			{Label: "Gửi notification", Action: "notify"},
-			{Label: "Giới thiệu", Action: "about"},
+			{Label: "Open file…", Action: "open-file"},
+			{Label: "Send notification", Action: "notify"},
+			{Label: "About", Action: "about"},
 		},
 	}); err != nil {
 		log.Println("hfd:", err)

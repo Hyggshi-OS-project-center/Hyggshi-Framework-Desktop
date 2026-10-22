@@ -2,24 +2,24 @@ package hfd
 
 import "errors"
 
-// SetTitle đổi tiêu đề của cửa sổ lúc chạy.
+// SetTitle changes the window title at runtime.
 func SetTitle(title string) error {
 	curMu.Lock()
 	b := curBackend
 	curMu.Unlock()
 	if b == nil {
-		return errors.New("hfd: SetTitle trước khi Run")
+		return errors.New("hfd: SetTitle before Run")
 	}
 	return b.setTitle(title)
 }
 
-// CloseWindow đóng cửa sổ (kết thúc main loop → Run trả về).
+// CloseWindow closes the window (ends the main loop → Run returns).
 func CloseWindow() error {
 	curMu.Lock()
 	b := curBackend
 	curMu.Unlock()
 	if b == nil {
-		return errors.New("hfd: CloseWindow trước khi Run")
+		return errors.New("hfd: CloseWindow before Run")
 	}
 	return b.closeWindow()
 }

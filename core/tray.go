@@ -2,48 +2,49 @@ package hfd
 
 import "errors"
 
-// TrayItem là một mục trong menu tray.
-// Action là chuỗi tùy ý — khi người dùng bấm mục, app nhận event
-// "tray" kèm payload {"action": Action} (lắng nghe bằng hfd.On).
+// TrayItem is an item in the tray menu.
+// Action is an arbitrary string — when the user clicks the item, the app
+// receives the "tray" event with the payload {"action": Action} (listen via hfd.On).
 type TrayItem struct {
 	Label  string
 	Action string
 }
 
-// TrayOptions mô tả icon + tooltip + menu của tray.
+// TrayOptions describes the tray icon + tooltip + menu.
 //
-// IconPath: đường dẫn ảnh HOẶC tên icon trong theme hệ thống.
-//  - rỗng           → icon mặc định "applications-system"
-//  - "system-search" (không chứa '/', không đuôi file) → dùng làm IconName theme
-//  - "/path/icon.png" → thư mục chứa được đưa vào IconThemePath,
-//    tên file (bỏ đuôi) làm IconName — hỗ trợ fallback của nhiều host.
+// IconPath: an image path OR an icon name in the system theme.
+//   - empty            → default icon "applications-system"
+//   - "system-search" (no '/', no file extension) → used as the theme IconName
+//   - "/path/icon.png" → the containing directory is added to IconThemePath,
+//     the file name (without extension) as IconName — supports the fallback
+//     of many hosts.
 type TrayOptions struct {
 	IconPath string
 	Tooltip  string
 	Items    []TrayItem
 }
 
-// trayBackend là interface tùy chọn — backend nào hỗ trợ tray thì implement.
+// trayBackend is an optional interface — whatever backend supports tray implements it.
 type trayBackend interface {
 	setTray(TrayOptions) error
 }
 
-// SetTray đăng ký tray icon (StatusNotifierItem trên Linux desktop).
+// SetTray registers the tray icon (StatusNotifierItem on Linux desktops).
 //
-// Linux: cần build với `-tags hfd_tray` (kích hoạt dep godbus).
-// Click trái icon → event "tray" {action:"__activate"}; click mục menu →
-// event "tray" {action:<Action của item>}. Host phải là shell hỗ trợ SNI
-// (GNOME cần extension AppIndicator, KDE/LXQt/XFCE có sẵn).
+// Linux: needs to be built with `-tags hfd_tray` (enables the godbus dep).
+// Left click on the icon → "tray" event {action:"__activate"}; click on a menu
+// item → "tray" event {action:<Action of the item>}. The host must be an SNI-capable
+// shell (GNOME needs the AppIndicator extension; KDE/LXQt/XFCE have it built in).
 func SetTray(opts TrayOptions) error {
 	curMu.Lock()
 	b := curBackend
 	curMu.Unlock()
 	if b == nil {
-		return errors.New("hfd: SetTray trước khi Run")
+		return errors.New("hfd: SetTray before Run")
 	}
 	tb, ok := b.(trayBackend)
 	if !ok {
-		return errors.New("hfd: SetTray chưa hỗ trợ trên backend này (linux: build với -tags hfd_tray)")
+		return errors.New("hfd: SetTray not supported on this backend (linux: build with -tags hfd_tray)")
 	}
 	return tb.setTray(opts)
 }

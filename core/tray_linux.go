@@ -13,10 +13,10 @@ import (
 	"github.com/godbus/dbus/v5"
 )
 
-// Backend tray cho Linux: StatusNotifierItem (SNI) + DBusMenu qua DBus.
-// Kích hoạt bằng `-tags hfd_tray`; không tag → core giữ 0 external dep.
+// Tray backend for Linux: StatusNotifierItem (SNI) + DBusMenu over DBus.
+// Enabled with `-tags hfd_tray`; without the tag the core keeps 0 external deps.
 //
-// Signature khớp interfaces-xml của extension AppIndicator:
+// Signatures match the interfaces-xml of the AppIndicator extension:
 //   GetLayout   (i,i,as) → (u, (ia{sv}av))
 //   GetGroupProperties (ai, as) → (revision, a(ia{sv}))
 //   Event       (i, s, v, u)
@@ -34,12 +34,12 @@ func (e *engine) setTray(opts TrayOptions) error {
 	if trayErr != nil {
 		return trayErr
 	}
-	// SetTray lần sau → dirty update menu hiện tại (bump revision + signal).
+	// A later SetTray → dirty update of the current menu (bump revision + signal).
 	traySvc.replaceItems(opts.Items)
 	return nil
 }
 
-// trayAction đẩy event "tray" vào JS.
+// trayAction pushes the "tray" event into JS.
 func (e *engine) trayAction(action string) {
 	_ = e.emit("tray", map[string]any{"action": action})
 }
@@ -55,7 +55,7 @@ type sniTooltip struct {
 
 type sniIcon struct {
 	W, H int32
-	Data []byte // ARGB32, byte-order theo endian hệ thống
+	Data []byte // ARGB32, byte order follows the system endianness
 }
 
 type trayService struct {
@@ -66,20 +66,20 @@ type trayService struct {
 	byID  map[int32]string // menu item id → action
 	title string
 	icon  string
-	theme string // IconThemePath (thư mục chứa icon file)
+	theme string // IconThemePath (directory containing the icon file)
 	rev   uint32
 }
 
 func startTray(opts TrayOptions) (*trayService, error) {
 	conn, err := dbus.SessionBus()
 	if err != nil {
-		return nil, fmt.Errorf("hfd: tray cần DBus session: %w", err)
+		return nil, fmt.Errorf("hfd: tray needs a DBus session: %w", err)
 	}
 	buf := make([]byte, 4)
 	_, _ = rand.Read(buf)
 	bus := fmt.Sprintf("org.hfd.tray.p%d.h%x", os.Getpid(), buf)
 	if _, err := conn.RequestName(bus, dbus.NameFlagDoNotQueue); err != nil {
-		return nil, fmt.Errorf("hfd: request bus name tray: %w", err)
+		return nil, fmt.Errorf("hfd: request tray bus name: %w", err)
 	}
 
 	svc := &trayService{
@@ -93,8 +93,8 @@ func startTray(opts TrayOptions) (*trayService, error) {
 	svc.setStaticLocked(opts)
 	svc.mu.Unlock()
 
-	// Host với đăng ký theo bus name luôn probe object path mặc định
-	// /StatusNotifierItem (DEFAULT_ITEM_OBJECT_PATH của watcher).
+	// Hosts that register by bus name always probe the default object path
+	// /StatusNotifierItem (the watcher's DEFAULT_ITEM_OBJECT_PATH).
 	svcPath := dbus.ObjectPath("/StatusNotifierItem")
 	menuPath := dbus.ObjectPath("/org/hfd/tray/menu")
 	if err := conn.Export(svc, svcPath, "org.kde.StatusNotifierItem"); err != nil {
@@ -111,8 +111,8 @@ func startTray(opts TrayOptions) (*trayService, error) {
 		return nil, fmt.Errorf("hfd: export DBusMenu props: %w", err)
 	}
 
-	// Các watcher phổ biến: KDE đặt object ở /org/kde/StatusNotifierWatcher,
-	// gnome-shell (AppIndicator extension) đặt ở /StatusNotifierWatcher. Thử cả hai.
+	// Common watchers: KDE places the object at /org/kde/StatusNotifierWatcher,
+	// gnome-shell (AppIndicator extension) at /StatusNotifierWatcher. Try both.
 	watcherName := "org.kde.StatusNotifierWatcher"
 	var regErr error
 	for _, wpath := range []string{"/org/kde/StatusNotifierWatcher", "/StatusNotifierWatcher"} {
@@ -123,12 +123,12 @@ func startTray(opts TrayOptions) (*trayService, error) {
 		}
 	}
 	if regErr != nil {
-		return nil, fmt.Errorf("hfd: watcher từ chối đăng ký tray (desktop cần hỗ trợ SNI): %w", regErr)
+		return nil, fmt.Errorf("hfd: watcher rejected tray registration (desktop must support SNI): %w", regErr)
 	}
 	return svc, nil
 }
 
-// setStaticLocked tính icon/tooltip/index items (mu phải đang giữ).
+// setStaticLocked computes icon/tooltip/item index (mu must be held).
 func (s *trayService) setStaticLocked(opts TrayOptions) {
 	if opts.Tooltip != "" {
 		s.title = opts.Tooltip
@@ -166,7 +166,7 @@ func (s *trayService) replaceItems(items []TrayItem) {
 	_ = s.conn.Emit(menuPath, "com.canonical.dbusmenu.LayoutUpdated", rev, int32(0))
 }
 
-// ---- org.freedesktop.DBus.Properties trên /org/hfd/tray ----------------------
+// ---- org.freedesktop.DBus.Properties on /org/hfd/tray ----------------------
 
 func (s *trayService) Get(iface, prop string) (dbus.Variant, *dbus.Error) {
 	props, derr := s.GetAll(iface)
@@ -175,13 +175,13 @@ func (s *trayService) Get(iface, prop string) (dbus.Variant, *dbus.Error) {
 	}
 	v, ok := props[prop]
 	if !ok {
-		return dbus.Variant{}, dbus.NewError("org.freedesktop.DBus.Error.UnknownProperty", []any{"hfd tray: không có property " + prop})
+		return dbus.Variant{}, dbus.NewError("org.freedesktop.DBus.Error.UnknownProperty", []any{"hfd tray: no property " + prop})
 	}
 	return v, nil
 }
 
 func (s *trayService) Set(iface, prop string, val dbus.Variant) *dbus.Error {
-	return dbus.NewError("org.freedesktop.DBus.Error.Failed", []any{"hfd tray: không cho phép Set " + prop})
+	return dbus.NewError("org.freedesktop.DBus.Error.Failed", []any{"hfd tray: Set not allowed for " + prop})
 }
 
 func (s *trayService) GetAll(iface string) (map[string]dbus.Variant, *dbus.Error) {
@@ -209,7 +209,7 @@ func (s *trayService) GetAll(iface string) (map[string]dbus.Variant, *dbus.Error
 
 // ---- SNI method calls ---------------------------------------------------------
 
-// Activate — người dùng click trái icon.
+// Activate — the user left-clicked the icon.
 func (s *trayService) Activate(x, y int32) *dbus.Error {
 	if e, ok := curBackend.(*engine); ok {
 		go e.trayAction("__activate")
@@ -217,8 +217,8 @@ func (s *trayService) Activate(x, y int32) *dbus.Error {
 	return nil
 }
 
-func (s *trayService) SecondaryActivate(x, y int32) *dbus.Error   { return nil }
-func (s *trayService) ContextMenu(x, y int32) *dbus.Error         { return nil }
+func (s *trayService) SecondaryActivate(x, y int32) *dbus.Error           { return nil }
+func (s *trayService) ContextMenu(x, y int32) *dbus.Error                 { return nil }
 func (s *trayService) Scroll(delta int32, orientation string) *dbus.Error { return nil }
 
 // ---- DBusMenu -----------------------------------------------------------------
@@ -231,14 +231,14 @@ func itemProps(label string) map[string]dbus.Variant {
 	}
 }
 
-// menuChild khớp signature (ia{sv}av) của layout node.
+// menuChild matches the (ia{sv}av) signature of the layout node.
 type menuChild struct {
 	ID    int32
 	Props map[string]dbus.Variant
 	Kids  []dbus.Variant
 }
 
-// groupItem khớp (ia{sv}) của GetGroupProperties.
+// groupItem matches the (ia{sv}) of GetGroupProperties.
 type groupItem struct {
 	ID    int32
 	Props map[string]dbus.Variant
@@ -261,20 +261,20 @@ func (t *trayMenu) Get(iface, prop string) (dbus.Variant, *dbus.Error) {
 	props := t.propsAll()
 	v, ok := props[prop]
 	if !ok {
-		return dbus.Variant{}, dbus.NewError("org.freedesktop.DBus.Error.UnknownProperty", []any{"hfd menu: không có property " + prop})
+		return dbus.Variant{}, dbus.NewError("org.freedesktop.DBus.Error.UnknownProperty", []any{"hfd menu: no property " + prop})
 	}
 	return v, nil
 }
 
 func (t *trayMenu) Set(iface, prop string, val dbus.Variant) *dbus.Error {
-	return dbus.NewError("org.freedesktop.DBus.Error.Failed", []any{"hfd menu: không cho phép Set " + prop})
+	return dbus.NewError("org.freedesktop.DBus.Error.Failed", []any{"hfd menu: Set not allowed for " + prop})
 }
 
 func (t *trayMenu) GetAll(iface string) (map[string]dbus.Variant, *dbus.Error) {
 	return t.propsAll(), nil
 }
 
-// AboutToShow(id) → false (menu không đổi hành động nào).
+// AboutToShow(id) → false (the menu does not change any action).
 func (t *trayMenu) AboutToShow(id int32) (bool, *dbus.Error) {
 	return false, nil
 }
@@ -300,7 +300,7 @@ func (t *trayMenu) GetLayout(parent int32, depth int32, propNames []string) (uin
 	return rev, dbus.MakeVariant(root), nil
 }
 
-// GetGroupProperties — libappindicator gọi sau GetLayout.
+// GetGroupProperties — libappindicator calls this after GetLayout.
 func (t *trayMenu) GetGroupProperties(ids []int32, propNames []string) (uint32, []groupItem, *dbus.Error) {
 	s := t.svc
 	s.mu.Lock()
@@ -325,7 +325,7 @@ func (t *trayMenu) GetGroupProperties(ids []int32, propNames []string) (uint32, 
 	return rev, out, nil
 }
 
-// Event(id, eventType, data, timestamp) — click mục menu → emit event cho JS.
+// Event(id, eventType, data, timestamp) — click on a menu item → emit event to JS.
 func (t *trayMenu) Event(id int32, eventType string, data dbus.Variant, timestamp uint32) *dbus.Error {
 	if eventType != "clicked" {
 		return nil

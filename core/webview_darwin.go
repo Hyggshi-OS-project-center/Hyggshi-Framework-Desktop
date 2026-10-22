@@ -4,10 +4,10 @@ package hfd
 
 import "errors"
 
-// Scaffold Phase 5 — backend macOS bằng WKWebView (cgo Objective-C).
-// KHÔNG compile WKWebView thật ở đây: cần Mac để phát triển + test
-// (docs/PHASE5-BACKENDS.md). Gọi API nào → lỗi rõ ràng.
-const darwinPhase5Msg = "hfd: backend macOS (WKWebView) — xem docs/PHASE5-BACKENDS.md, chưa bật trong bản này"
+// Scaffold Phase 5 — macOS backend using WKWebView (cgo Objective-C).
+// A real WKWebView is NOT compiled here: needs a Mac to develop + test
+// (docs/PHASE5-BACKENDS.md). Calling any API → clear error.
+const darwinPhase5Msg = "hfd: macOS backend (WKWebView) — see docs/PHASE5-BACKENDS.md, not yet enabled in this version"
 
 type darwinBackend struct{ opts Options }
 
@@ -29,15 +29,15 @@ func (darwinBackend) showMessage(string, string, int) (bool, error) {
 func (darwinBackend) setTitle(string) error { return errors.New(darwinPhase5Msg) }
 func (darwinBackend) closeWindow() error    { return errors.New(darwinPhase5Msg) }
 
-// ---- Kế hoạch kỹ thuật WKWebView (khi có Mac) --------------------------------
+// ---- WKWebView technical plan (once a Mac is available) --------------------
 //
-// 1. Threading: app.Run luôn trên main thread (dispatch main app; Go LockOSThread).
-// 2. NSApplication → NSWindow (styleMask titlebar) → contentView chứa WKWebView.
+// 1. Threading: app.Run always on the main thread (dispatch main app; Go LockOSThread).
+// 2. NSApplication → NSWindow (styleMask titlebar) → contentView holding the WKWebView.
 // 3. Scheme "hfd": WKWebViewConfiguration.setURLSchemeHandler(HFDSchemeHandler)
-//    — implements webView(_:start:)/stopTask; serving mapping embed FS như GTK.
-// 4. IPC: window.webkit.messageHandlers.hfd — macOS 15+ dùng
-//    -addScriptMessageHandlerWithReply:name:contentWorld: (promise reply thật,
-//    đối đằng WebKitGTK 2.52); macOS cũ: fallback defer evaluateJavaScript
-//    trả {id,result} — runtime JS giữ map id→resolve (giống WebView2).
-// 5. Injector runtime: WKUserContentController.addUserScript(InjTime.documentStart).
-// 6. Clipboard: NSPasteboard.general; dialog: NSOpenPanel/NSAlert.
+//    — implements webView(_:start:)/stopTask; serving mapping of the embedded FS like GTK.
+// 4. IPC: window.webkit.messageHandlers.hfd — macOS 15+ uses
+//    -addScriptMessageHandlerWithReply:name:contentWorld: (real promise reply,
+//    countering WebKitGTK 2.52); older macOS: fallback defer evaluateJavaScript
+//    returning {id,result} — the JS runtime keeps a map id→resolve (like WebView2).
+// 5. Runtime injector: WKUserContentController.addUserScript(InjTime.documentStart).
+// 6. Clipboard: NSPasteboard.general; dialogs: NSOpenPanel/NSAlert.

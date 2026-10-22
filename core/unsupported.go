@@ -4,7 +4,7 @@ package hfd
 
 import "errors"
 
-const notLinuxMsg = "hfd: backend Linux (GTK + WebKitGTK) mới — nền tảng này ở Phase 5"
+const notLinuxMsg = "hfd: Linux backend (GTK + WebKitGTK) only — this platform arrives in Phase 5"
 
 type stubBackend struct{}
 

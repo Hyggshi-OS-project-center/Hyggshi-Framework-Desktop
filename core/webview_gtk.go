@@ -22,8 +22,8 @@ static void hfdApplyMenu(GtkWidget *box, const char *serialized); // fwd
 static GtkWidget                *hfdWin  = NULL;
 static WebKitWebView            *hfdView = NULL;
 static WebKitUserContentManager *hfdUcm  = NULL;
-static GtkWidget                *hfdBox  = NULL;   // vbox chứa menu + webview
-static GtkWidget                *hfdMenuBar = NULL; // thay thế được bằng SetMenu
+static GtkWidget                *hfdBox  = NULL;   // vbox holding the menu + webview
+static GtkWidget                *hfdMenuBar = NULL; // replaceable via SetMenu
 
 static void hfdWindowDestroy(GtkWidget *w, gpointer data) {
 	hfdGoOnWindowClosed();
@@ -50,8 +50,8 @@ static gchar **hfdParseLines(const char *joined) {
 	return (gchar **)g_ptr_array_free(arr, FALSE);
 }
 
-// Script nguồn runtime + allowlist origin (window.hfd chỉ tồn tại ở origin
-// được phép — security model của HFD: bridge = capability).
+// Runtime source script + origin allowlist (window.hfd only exists on
+// allowed origins — HFD's security model: bridge = capability).
 static WebKitUserScript *hfdNewRuntimeScript(const char *src, const char *patternsJoined) {
 	gchar **allowList = hfdParseLines(patternsJoined);
 	WebKitUserScript *rs = webkit_user_script_new(
@@ -64,16 +64,17 @@ static WebKitUserScript *hfdNewRuntimeScript(const char *src, const char *patter
 	return rs;
 }
 
-// script-message-with-reply-received::hfd — WebKit giữ promise JS; sống lâu hơn
-// callback vì ta ref reply + JSCContext, rồi trả giá trị khi handler Go xong.
-// Chú ý: signal này truyền JSCValue thẳng (không phải WebKitJavascriptResult).
+// script-message-with-reply-received::hfd — WebKit holds the JS promise; it
+// outlives the callback because we ref reply + JSCContext, then return the
+// value when the Go handler finishes.
+// Note: this signal passes JSCValue directly (not WebKitJavascriptResult).
 static gboolean hfdScriptMessageCallback(WebKitUserContentManager *manager,
                                          JSCValue *value,
                                          WebKitScriptMessageReply *reply,
                                          gpointer user) {
 	JSCContext *ctx     = jsc_value_get_context(value);
-	char       *payload = jsc_value_to_string(value); // copy — bên Go g_free
-	gchar      *uri     = g_strdup(webkit_web_view_get_uri(hfdView)); // page hiện tại
+	char       *payload = jsc_value_to_string(value); // copy — Go side g_free
+	gchar      *uri     = g_strdup(webkit_web_view_get_uri(hfdView)); // current page
 
 	webkit_script_message_reply_ref(reply);
 	g_object_ref((GObject *)ctx);
@@ -101,33 +102,33 @@ static WebKitWebView *hfdBootstrap(int width, int height, const char *title, int
 
 	if (devtools) {
 		webkit_settings_set_enable_developer_extras(webkit_web_view_get_settings(hfdView), TRUE);
-		// console.log/error của page in ra stdout/stderr — cần để debug dev.
+		// the page's console.log/error is printed to stdout/stderr — needed for dev debugging.
 		webkit_settings_set_enable_write_console_messages_to_stdout(
 			webkit_web_view_get_settings(hfdView), TRUE);
 	}
 
-	// IPC JS→Go: postMessage trả về Promise thật; Go hoàn tất bằng hfdReplyJSON/hfdReplyError.
+	// IPC JS→Go: postMessage returns a real Promise; Go completes it via hfdReplyJSON/hfdReplyError.
 	webkit_user_content_manager_register_script_message_handler_with_reply(hfdUcm, "hfd", NULL);
 	g_signal_connect(hfdUcm, "script-message-with-reply-received::hfd",
 	                 G_CALLBACK(hfdScriptMessageCallback), NULL);
 
-	// Inject runtime hfd.js tự động (DOCUMENT_START) — frontend không cần
-	// <script src> thủ công; hoạt động cả với Assets lẫn DevURL (dev server).
-	// Allow list giới hạn origin được inject → bridge = capability.
+	// Inject the hfd.js runtime automatically (DOCUMENT_START) — the frontend
+	// doesn't need a manual <script src>; works with both Assets and DevURL (dev server).
+	// The allow list restricts which origins get injected → bridge = capability.
 	if (runtimeSrc != NULL) {
 		WebKitUserScript *rs = hfdNewRuntimeScript(runtimeSrc, allowListJoined);
 		webkit_user_content_manager_add_script(hfdUcm, rs);
 		webkit_user_script_unref(rs);
 	}
 
-	// Serve assets qua custom scheme hfd://app/...
+	// Serve assets via the custom scheme hfd://app/...
 	webkit_web_context_register_uri_scheme(webkit_web_view_get_context(hfdView),
 	                                       "hfd", hfdSchemeRequestCallback, NULL, NULL);
 
 	hfdBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
 	gtk_container_add(GTK_CONTAINER(hfdWin), hfdBox);
 
-	// Menu bar (nếu Options.Menu được cấu hình).
+	// Menu bar (if Options.Menu is configured).
 	if (menuSerialized != NULL && menuSerialized[0] != '\0') {
 		hfdApplyMenu(hfdBox, menuSerialized);
 	}
@@ -136,7 +137,7 @@ static WebKitWebView *hfdBootstrap(int width, int height, const char *title, int
 	gtk_widget_show_all(GTK_WIDGET(hfdWin));
 
 	if (devURL != NULL && devURL[0] != '\0') {
-		// Dev mode: nạp dev server (vite HMR...) thay vì scheme.
+		// Dev mode: load the dev server (vite HMR...) instead of the scheme.
 		webkit_web_view_load_uri(hfdView, devURL);
 	} else {
 		webkit_web_view_load_uri(hfdView, "hfd://app/index.html");
@@ -148,7 +149,7 @@ static WebKitWebView *hfdBootstrap(int width, int height, const char *title, int
 	return hfdView;
 }
 
-// Chỉ được gọi trong GTK main thread (pump đảm nhiệm).
+// Must only be called on the GTK main thread (the pump takes care of that).
 static void hfdEvaluate(void *view, const char *script, gssize length) {
 	webkit_web_view_evaluate_javascript(WEBKIT_WEB_VIEW(view), script, length,
 	                                    NULL, NULL, NULL, NULL, NULL);
@@ -169,7 +170,7 @@ static const char *hfdRequestGetURI(void *request) {
 	return webkit_uri_scheme_request_get_uri(WEBKIT_URI_SCHEME_REQUEST(request));
 }
 
-// Trả kết primitive JSON → promise phía JS. Chỉ gọi trên main thread.
+// Return a JSON primitive → JS-side promise. Only call on the main thread.
 static void hfdReplyJSON(void *reply, void *jscCtx, const char *json) {
 	JSCContext *ctx = JSC_CONTEXT(jscCtx);
 	JSCValue   *v   = jsc_value_new_from_json(ctx, json);
@@ -188,7 +189,7 @@ static void hfdReplyError(void *reply, void *jscCtx, const char *message) {
 	g_object_unref((GObject *)jscCtx);
 }
 
-// Thu hồi ref nếu handler quá muộn (app đã đóng) — không gửi gì.
+// Release refs if the handler is too late (app already closed) — send nothing.
 static void hfdReleaseScriptReply(void *reply, void *jscCtx) {
 	webkit_script_message_reply_unref(((WebKitScriptMessageReply *)reply));
 	g_object_unref((GObject *)jscCtx);
@@ -201,16 +202,16 @@ static void hfdCloseWindow(void) {
 }
 
 // ---- menu bar --------------------------------------------------------------
-// Format serialized: "MenuLabel\n" + mỗi item "Label\x1fAction\n"
-extern void hfdGoOnMenu(char *action); // Go export nhận char*
+// Serialized format: "MenuLabel\n" plus each item "Label\x1fAction\n"
+extern void hfdGoOnMenu(char *action); // Go export receiving char*
 
 static void hfdMenuItemActivate(GtkMenuItem *self, gpointer data) {
-	hfdGoOnMenu((char *)data); // data là strdup — closure sẽ g_free
+	hfdGoOnMenu((char *)data); // data is strdup — the closure will g_free
 }
 
-// Tạo menu bar từ chuỗi serialize và chèn lên đầu vbox.
+// Build a menu bar from the serialized string and insert it at the top of the vbox.
 static void hfdApplyMenu(GtkWidget *box, const char *serialized) {
-	// phá menu bar cũ nếu có
+	// tear down the old menu bar if any
 	if (hfdMenuBar != NULL) {
 		gtk_widget_destroy(hfdMenuBar);
 		hfdMenuBar = NULL;
@@ -272,9 +273,9 @@ static void hfdSetTitle(const char *title) {
 	}
 }
 
-// ---- dialogs (modal — chỉ gọi trên main thread) ------------------------------
+// ---- dialogs (modal — only call on the main thread) ------------------------------
 
-// Thêm các GtkFileFilter từ chuỗi serialize: "Name\tpat1,pat2\n..."
+// Add GtkFileFilters from the serialized string: "Name\tpat1,pat2\n..."
 static void hfdAddFilters(GtkFileChooser *chooser, const char *serialized) {
 	if (serialized == NULL || serialized[0] == '\0') return;
 	const char *p = serialized;
@@ -305,7 +306,7 @@ static void hfdAddFilters(GtkFileChooser *chooser, const char *serialized) {
 static char *hfdDialogOpenFile(const char *title, const char *filters, const char *startDir) {
 	GtkWidget *dlg = gtk_file_chooser_dialog_new(
 		title, GTK_WINDOW(hfdWin), GTK_FILE_CHOOSER_ACTION_OPEN,
-		"_Huỷ", GTK_RESPONSE_CANCEL, "_Mở", GTK_RESPONSE_ACCEPT, NULL);
+		"_Cancel", GTK_RESPONSE_CANCEL, "_Open", GTK_RESPONSE_ACCEPT, NULL);
 
 	hfdAddFilters(GTK_FILE_CHOOSER(dlg), filters);
 	if (startDir != NULL && startDir[0] != '\0') {
@@ -323,7 +324,7 @@ static char *hfdDialogOpenFile(const char *title, const char *filters, const cha
 static char *hfdDialogSaveFile(const char *title, const char *suggested) {
 	GtkWidget *dlg = gtk_file_chooser_dialog_new(
 		title, GTK_WINDOW(hfdWin), GTK_FILE_CHOOSER_ACTION_SAVE,
-		"_Huỷ", GTK_RESPONSE_CANCEL, "_Lưu", GTK_RESPONSE_ACCEPT, NULL);
+		"_Cancel", GTK_RESPONSE_CANCEL, "_Save", GTK_RESPONSE_ACCEPT, NULL);
 
 	gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(dlg), TRUE);
 	if (suggested != NULL && suggested[0] != '\0') {
@@ -408,7 +409,7 @@ func mimeFor(name string) string {
 	return "application/octet-stream"
 }
 
-// scriptMsg là một IPC call nhận từ JS (đã ref reply + JSCContext).
+// scriptMsg is an IPC call received from JS (reply + JSCContext already ref'd).
 type scriptMsg struct {
 	payload string
 	pageURI string
@@ -420,21 +421,21 @@ type engine struct {
 	opts           Options
 	view           unsafe.Pointer
 	token          string           // per-launch capability token (layer 3)
-	allowed        []*regexp.Regexp // AllowOrigins — URI page phải khớp 1 pattern
+	allowed        []*regexp.Regexp // AllowOrigins — the page URI must match one pattern
 	schemeRequests chan unsafe.Pointer
 	messages       chan scriptMsg
-	uiTasks        chan func() // chạy trên GTK main thread thông qua pump
+	uiTasks        chan func() // run on the GTK main thread via the pump
 	done           chan struct{}
 	closeOnce      sync.Once
 }
 
-var _ = fs.FS(nil) // giữ import fs (unix backend dùng trong Options.Assets)
+var _ = fs.FS(nil) // keep the fs import (unix backend uses it in Options.Assets)
 
-// gtkEngine được assign trong run() trước khi GTK loop chạy (happens-before
-// với mọi callback vì callback chỉ phát sinh sau gtk_main đã chạy).
+// gtkEngine is assigned in run() before the GTK loop starts (happens-before
+// with all callbacks because callbacks only fire once gtk_main is running).
 var gtkEngine *engine
 
-// globRegexp chuyển pattern có '*' (bất kỳ chuỗi nào, kể cả '/') → regexp.
+// globRegexp converts a pattern with '*' (any string, including '/') → regexp.
 func globRegexp(pattern string) *regexp.Regexp {
 	parts := strings.Split(pattern, "*")
 	var b strings.Builder
@@ -448,13 +449,13 @@ func globRegexp(pattern string) *regexp.Regexp {
 	b.WriteString("$")
 	re, err := regexp.Compile(b.String())
 	if err != nil {
-		// pattern rất khócompile fail (QuoteMeta an toàn); nếu fail → từ chối.
+		// a pattern can hardly fail to compile (QuoteMeta is safe); if it does → reject.
 		return regexp.MustCompile(`^\x00\x00$`)
 	}
 	return re
 }
 
-// newToken sinh token per-launch (crypto/rand 32 byte hex).
+// newToken generates a per-launch token (crypto/rand, 32 bytes, hex).
 func newToken() string {
 	buf := make([]byte, 32)
 	rand.Read(buf)
@@ -482,12 +483,12 @@ func newEngine(opts Options) backend {
 	}
 }
 
-// run khóa goroutine này vào OS thread main để GTK khởi tạo đúng.
+// run locks this goroutine to the main OS thread so GTK initializes correctly.
 func (e *engine) run() error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	gtkEngine = e // callbacks đọc đây sau khi gtk_main chạy
+	gtkEngine = e // callbacks read this after gtk_main starts
 
 	titleC := C.CString(e.opts.Title)
 	defer C.free(unsafe.Pointer(titleC))
@@ -499,8 +500,8 @@ func (e *engine) run() error {
 	menuC := C.CString(menuSerialized(e.opts))
 	defer C.free(unsafe.Pointer(menuC))
 
-	// AllowOrigins: nil → mặc định hfd://app/* (+ devURL/* nếu dev).
-	// compile pattern glob '*' thành regexp.
+	// AllowOrigins: nil → default hfd://app/* (+ devURL/* when dev).
+	// compile glob '*' patterns into a regexp.
 	origins := e.opts.AllowOrigins
 	if origins == nil {
 		origins = []string{"hfd://app/*"}
@@ -515,8 +516,8 @@ func (e *engine) run() error {
 	allowListC := C.CString(strings.Join(origins, "\n"))
 	defer C.free(unsafe.Pointer(allowListC))
 
-	// Per-launch capability token: chỉ runtime của chúng ta biết token
-	// (inject qua user script). Mọi IPC phải mang token đúng mới được dùng.
+	// Per-launch capability token: only our runtime knows the token
+	// (injected via user script). Every IPC must carry the correct token to be accepted.
 	e.token = newToken()
 	runtimeWithCfg := fmt.Sprintf("window.__HFD_CONFIG = { token: %q, csp: %q };", e.token, e.opts.CSP) +
 		"\n" + string(runtimeJS)
@@ -564,8 +565,8 @@ func hfdGoOnScriptMessage(payload *C.char, uri *C.char, jscCtx unsafe.Pointer, r
 		jscCtx:  jscCtx,
 		reply:   reply,
 	}
-	C.g_free(C.gpointer(unsafe.Pointer(payload))) // GoString đã copy sang Go heap
-	C.g_free(C.gpointer(unsafe.Pointer(uri)))      // g_strdup — Go đã copy
+	C.g_free(C.gpointer(unsafe.Pointer(payload))) // GoString already copied to the Go heap
+	C.g_free(C.gpointer(unsafe.Pointer(uri)))      // g_strdup — Go already copied
 }
 
 //export hfdGoOnSchemeRequest
@@ -589,11 +590,11 @@ func hfdGoOnMenu(action *C.char) {
 	if curBackend == nil {
 		return
 	}
-	// emit từ UI thread — chỉ marshal + push task (không block)
+	// emit from the UI thread — just marshal + push a task (no blocking)
 	go func() { _ = curBackend.emit("menu", map[string]any{"action": a}) }()
 }
 
-// menuSerialized.encode Options.Menu về format C đọc: "Label\nlbl\x1faction\n..."
+// menuSerialized encodes Options.Menu into the C-readable format: "Label\nlbl\x1faction\n..."
 func menuSerialized(opts Options) string {
 	if len(opts.Menu) == 0 {
 		return ""
@@ -619,48 +620,48 @@ func menuSerialized(opts Options) string {
 func (e *engine) messageLoop() {
 	for m := range e.messages {
 		if e.isClosed() {
-			C.hfdReleaseScriptReply(m.reply, m.jscCtx) // thu hồi im lặng
+			C.hfdReleaseScriptReply(m.reply, m.jscCtx) // release silently
 			continue
 		}
 
-		// Security tầng 2: page URI phải khớp AllowOrigins dù bridge nhờ lẫn
-		// qua frame nào. (Tầng 1: user script chỉ inject trên origin được phép.)
+		// Security layer 2: the page URI must match AllowOrigins no matter which frame
+		// the bridge passed through. (Layer 1: the user script is only injected on allowed origins.)
 		if !e.uriAllowed(m.pageURI) {
 			if e.opts.Debug {
-				fmt.Fprintf(os.Stderr, "hfd [debug]: CHẶN IPC từ origin %q\n", m.pageURI)
+				fmt.Fprintf(os.Stderr, "hfd [debug]: BLOCKED IPC from origin %q\n", m.pageURI)
 			}
-			e.replyErr(m, fmt.Sprintf("hfd: origin %q không được phép gọi IPC", m.pageURI))
+			e.replyErr(m, fmt.Sprintf("hfd: origin %q is not allowed to call IPC", m.pageURI))
 			continue
 		}
 
 		var req ipcRequest
 		if err := json.Unmarshal([]byte(m.payload), &req); err != nil {
-			e.replyErr(m, fmt.Sprintf("hfd: payload IPC sai định dạng: %v", err))
+			e.replyErr(m, fmt.Sprintf("hfd: malformed IPC payload: %v", err))
 			continue
 		}
-		// Tầng 3: capability token — mỗi launch một token, chỉ runtime
-		// inject của chúng ta biết. Compare constant-time.
+		// Layer 3: capability token — one token per launch, only our injected runtime
+		// knows it. Constant-time compare.
 		if subtle.ConstantTimeCompare([]byte(req.Token), []byte(e.token)) != 1 {
 			if e.opts.Debug {
-				fmt.Fprintf(os.Stderr, "hfd [debug]: TỪ CHỐI IPC (token sai) handler %q\n", req.Name)
+				fmt.Fprintf(os.Stderr, "hfd [debug]: REJECTED IPC (bad token) handler %q\n", req.Name)
 			}
-			e.replyErr(m, "hfd: token không hợp lệ — bridge chưa thể được xác thực")
+			e.replyErr(m, "hfd: invalid token — bridge failed authentication")
 			continue
 		}
 		if req.Name == "" {
-			e.replyErr(m, "hfd: thiếu tên handler")
+			e.replyErr(m, "hfd: missing handler name")
 			continue
 		}
 		h, ok := lookupHandler(req.Name)
 		if !ok {
-			e.replyErr(m, fmt.Sprintf("hfd: handler %q chưa Bind", req.Name))
+			e.replyErr(m, fmt.Sprintf("hfd: handler %q not yet Bound", req.Name))
 			continue
 		}
 		if e.opts.Debug {
-			fmt.Fprintf(os.Stderr, "hfd [debug]: gọi handler %s\n", req.Name)
+			fmt.Fprintf(os.Stderr, "hfd [debug]: call handler %s\n", req.Name)
 		}
 
-		// Handler chạy ngoài main thread để không chặn UI.
+		// The handler runs off the main thread so it does not block the UI.
 		go func(m scriptMsg, h Handler, args string) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -674,7 +675,7 @@ func (e *engine) messageLoop() {
 			}
 			data, jerr := json.Marshal(result)
 			if jerr != nil {
-				e.replyErr(m, fmt.Sprintf("hfd: marshal kết quả: %v", jerr))
+				e.replyErr(m, fmt.Sprintf("hfd: marshal result: %v", jerr))
 				return
 			}
 			e.reply(m, data)
@@ -689,7 +690,7 @@ func argsOrEmpty(raw json.RawMessage) string {
 	return string(raw)
 }
 
-// reply — cần chạy trên GTK main thread → đẩy qua uiTasks.
+// reply — must run on the GTK main thread → push through uiTasks.
 func (e *engine) reply(m scriptMsg, data []byte) {
 	if e.isClosed() {
 		C.hfdReleaseScriptReply(m.reply, m.jscCtx)
@@ -738,14 +739,14 @@ func (e *engine) emit(name string, payload any) error {
 func (e *engine) schemeLoop() {
 	for req := range e.schemeRequests {
 		if e.isClosed() {
-			continue // request sẽ để WebKit tự dọn khi webview hủy
+			continue // let WebKit clean up the request itself when the webview is cancelled
 		}
 		e.serveScheme(req)
 	}
 }
 
 func (e *engine) serveScheme(req unsafe.Pointer) {
-	uriC := C.hfdRequestGetURI(req) // internal pointer — không free
+	uriC := C.hfdRequestGetURI(req) // internal pointer — do not free
 	uri := C.GoString(uriC)
 
 	u, err := url.Parse(uri)
@@ -777,7 +778,7 @@ func (e *engine) serveScheme(req unsafe.Pointer) {
 	} else if name == "index.html" {
 		data = []byte(defaultIndexHTML)
 	} else {
-		e.finishText(req, fmt.Sprintf("hfd:// 404: Assets chưa cấu hình, không tìm thấy %s", name))
+		e.finishText(req, fmt.Sprintf("hfd:// 404: Assets not configured, %s not found", name))
 		return
 	}
 
@@ -810,9 +811,9 @@ func readFile(fsys fs.FS, name string) ([]byte, error) {
 const defaultIndexHTML = `<!doctype html>
 <html><head><meta charset="utf-8"><title>HFD</title>
 <style>body{font-family:sans-serif;background:#16181d;color:#e8e9ec;display:grid;place-items:center;height:100vh;margin:0}code{background:#24272e;padding:2px 6px;border-radius:4px}</style>
-</head><body><div><h1>HFD chạy rồi</h1><p>Đây là trang index mặc định — hãy cấu hình <code>Options.Assets</code> để nạp app của bạn.</p></div></body></html>`
+</head><body><div><h1>HFD is running</h1><p>This is the default index page — configure <code>Options.Assets</code> to load your app.</p></div></body></html>`
 
-// ---- pump: đợi + xả task trên main thread -----------------------------------
+// ---- pump: wait for and drain tasks on the main thread -----------------------------------
 
 func (e *engine) drainUI() {
 	for {
@@ -829,21 +830,21 @@ func (e *engine) drainUI() {
 }
 
 // ---- native API: clipboard / dialog / title / close --------------------------
-// Methods đẩy task lên main thread (GTK thao tác UI duy nhất ở đó) và chờ
-// kết quả. App đóng giữa chừng → trả lỗi "app đã đóng", không deadlock.
+// Methods push a task onto the main thread (GTK may only touch the UI there) and wait for
+// the result. If the app closes midway → return an "app has closed" error, no deadlock.
 
 func (e *engine) onMain[T any](run func() T) (T, error) {
 	var zero T
 	if e.isClosed() {
-		return zero, fmt.Errorf("hfd: app đã đóng")
+		return zero, fmt.Errorf("hfd: app has closed")
 	}
 	ch := make(chan T, 1)
-	e.uiTasks <- func() { ch <- run() } // uiTasks buffer 256 — non-blocking
+	e.uiTasks <- func() { ch <- run() } // uiTasks buffered at 256 — non-blocking
 	select {
 	case v := <-ch:
 		return v, nil
 	case <-e.done:
-		return zero, fmt.Errorf("hfd: app đã đóng khi chờ UI")
+		return zero, fmt.Errorf("hfd: app closed while waiting for the UI")
 	}
 }
 
@@ -885,7 +886,7 @@ func (e *engine) openFileDialog(title, serializedFilters, startDir string) (stri
 		return "", false, err
 	}
 	if path == nil {
-		return "", false, nil // user huỷ
+		return "", false, nil // user cancelled
 	}
 	defer C.g_free(C.gpointer(unsafe.Pointer(path)))
 	return C.GoString(path), true, nil

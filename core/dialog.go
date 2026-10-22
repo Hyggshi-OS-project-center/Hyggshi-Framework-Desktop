@@ -1,80 +1,81 @@
 package hfd
 
-// Native dialog file — chạy modal trên GTK (chặn thư مربột UI cho tới khi
-// chọn hay hủy). Gọi được từ handler goroutine (IPC) hoặc goroutine riêng.
+// Native dialog file — shows a modal over GTK (blocking the UI event loop
+// until selection or cancel). Callable from a handler goroutine (IPC) or a
+// separate goroutine.
 
 import "errors"
 
-// FileFilter một bộ lọc cho dialogs: Name hiển thị, Patterns vd ["*.png", "*.jpg"].
+// FileFilter is a filter for dialogs: Name is displayed, Patterns e.g. ["*.png", "*.jpg"].
 type FileFilter struct {
 	Name     string
 	Patterns []string
 }
 
-// FileDialogOptions cấu hình OpenFileDialog / SaveFileDialog.
+// FileDialogOptions configures OpenFileDialog / SaveFileDialog.
 type FileDialogOptions struct {
 	Title       string
 	Filters     []FileFilter
-	StartDir    string // OpenFileDialog: thư mục mở sẵn
-	InitialName string // SaveFileDialog: tên file gợi ý
+	StartDir    string // OpenFileDialog: directory opened initially
+	InitialName string // SaveFileDialog: suggested file name
 }
 
-// OpenFileDialog mở dialog chọn file. Trả về path và ok (false = user hủy).
+// OpenFileDialog opens a file-picker dialog. Returns path and ok (false = user canceled).
 func OpenFileDialog(opts FileDialogOptions) (path string, ok bool, err error) {
 	curMu.Lock()
 	b := curBackend
 	curMu.Unlock()
 	if b == nil {
-		return "", false, errors.New("hfd: OpenFileDialog trước khi Run")
+		return "", false, errors.New("hfd: OpenFileDialog before Run")
 	}
 	return b.openFileDialog(opts.Title, serializeFilters(opts.Filters), opts.StartDir)
 }
 
-// SaveFileDialog mở dialog lưu file (có xác nhận ghi đè).
+// SaveFileDialog opens a save-file dialog (with overwrite confirmation).
 func SaveFileDialog(opts FileDialogOptions) (path string, ok bool, err error) {
 	curMu.Lock()
 	b := curBackend
 	curMu.Unlock()
 	if b == nil {
-		return "", false, errors.New("hfd: SaveFileDialog trước khi Run")
+		return "", false, errors.New("hfd: SaveFileDialog before Run")
 	}
 	return b.saveFileDialog(opts.Title, opts.InitialName)
 }
 
-// MessageLevel mức của ShowMessage.
+// MessageLevel is the level of ShowMessage.
 type MessageLevel int
 
 const (
-	MessageInfo MessageLevel = iota // nút OK
-	MessageWarning                  // nút OK
-	MessageError                    // nút OK
-	MessageQuestion                 // nút Yes/No
+	MessageInfo MessageLevel = iota // OK button
+	MessageWarning                  // OK button
+	MessageError                    // OK button
+	MessageQuestion                 // Yes/No buttons
 )
 
-// MessageDialogOptions cấu hình ShowMessage.
+// MessageDialogOptions configures ShowMessage.
 type MessageDialogOptions struct {
 	Title   string
 	Message string
 	Level   MessageLevel
 }
 
-// ShowMessage hiện modal thông báo. Trả về true khi nút OK/Yes được bấm
-// (hay false khi No/hủy — chỉ có nghĩa với MessageQuestion).
+// ShowMessage shows a message modal. Returns true when the OK/Yes button is
+// clicked (or false on No/cancel — only meaningful for MessageQuestion).
 func ShowMessage(opts MessageDialogOptions) (ok bool, err error) {
 	curMu.Lock()
 	b := curBackend
 	curMu.Unlock()
 	if b == nil {
-		return false, errors.New("hfd: ShowMessage trước khi Run")
+		return false, errors.New("hfd: ShowMessage before Run")
 	}
 	return b.showMessage(opts.Title, opts.Message, int(opts.Level))
 }
 
-// serializeFilters chuyển filters về format C helper đọc:
+// serializeFilters converts the filters into the format the C helper reads:
 //
-//	Tên\tpattern1,pattern2\n...
+//	Name\tpattern1,pattern2\n...
 //
-// (kí tự kẻo không chứa \n\t,)
+// (characters stripped so the values cannot contain \n\t,)
 func serializeFilters(filters []FileFilter) string {
 	s := ""
 	for _, f := range filters {
@@ -95,7 +96,7 @@ func serializeFilters(filters []FileFilter) string {
 }
 
 func sanitizeLabel(s, fallback string) string {
-	// bỏ \n \t và , để không phá serialization
+	// strip \n, \t and , so the serialization isn't broken
 	out := make([]byte, 0, len(s))
 	for i := 0; i < len(s); i++ {
 		c := s[i]

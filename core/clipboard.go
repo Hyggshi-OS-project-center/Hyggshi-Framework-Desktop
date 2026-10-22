@@ -2,24 +2,24 @@ package hfd
 
 import "errors"
 
-// SetClipboard ghi văn bản vào clipboard hệ thống.
+// SetClipboard writes text to the system clipboard.
 func SetClipboard(text string) error {
 	curMu.Lock()
 	b := curBackend
 	curMu.Unlock()
 	if b == nil {
-		return errors.New("hfd: SetClipboard trước khi Run")
+		return errors.New("hfd: SetClipboard before Run")
 	}
 	return b.setClipboard(text)
 }
 
-// GetClipboard đọc văn bản từ clipboard hệ thống (rỗng nếu không có text).
+// GetClipboard reads text from the system clipboard (empty if there is no text).
 func GetClipboard() (string, error) {
 	curMu.Lock()
 	b := curBackend
 	curMu.Unlock()
 	if b == nil {
-		return "", errors.New("hfd: GetClipboard trước khi Run")
+		return "", errors.New("hfd: GetClipboard before Run")
 	}
 	return b.getClipboard()
 }
