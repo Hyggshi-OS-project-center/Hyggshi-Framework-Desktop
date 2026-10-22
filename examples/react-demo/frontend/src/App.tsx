@@ -22,11 +22,11 @@ export default function App() {
 	return (
 		<main className="app">
 			<h1>react-demo <span className="tag">HFD + React + Vite</span></h1>
-			<p className="sub">useHfdCall tự gọi SysInfo khi mount — chạy qua IPC native.</p>
+			<p className="sub">useHfdCall calls SysInfo on mount — over native IPC.</p>
 
 			<section className="card">
-				{sys.loading && <p>đang tải SysInfo…</p>}
-				{sys.error && <p className="err">SysInfo lỗi: {String(sys.error.message)}</p>}
+				{sys.loading && <p>loading SysInfo…</p>}
+				{sys.error && <p className="err">SysInfo failed: {String(sys.error.message)}</p>}
 				{sys.data && (
 					<pre className="output">
 	{sys.data.hostname} • {sys.data.os}/{sys.data.arch} • {sys.data.cpus} CPUs • {sys.data.goVersion}
@@ -42,5 +42,3 @@ export default function App() {
 		</main>
 	);
 }
-
-/* HMR test 1792643685 */

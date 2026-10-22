@@ -95,10 +95,10 @@ type App struct{}
 
 func (a *App) Greet(args GreetArgs) (GreetResult, error) {
 	if args.Name == "" {
-		args.Name = "bạn"
+		args.Name = "there"
 	}
 	return GreetResult{
-		Message: "Xin chào " + args.Name + " — trả lời trực tiếp từ Go runtime của HFD!",
+		Message: "Hello " + args.Name + " — answered straight from the HFD Go runtime!",
 	}, nil
 }
 
@@ -125,7 +125,7 @@ func (a *App) StartTick(args StartTickArgs) (StartTickResult, error) {
 			}
 			time.Sleep(time.Second)
 		}
-		_ = hfd.Emit("tick-done", map[string]string{"note": fmt.Sprintf("hoàn thành %d ticks", n)})
+		_ = hfd.Emit("tick-done", map[string]string{"note": fmt.Sprintf("completed %d ticks", n)})
 	}(args.Times)
 	return StartTickResult{Started: true}, nil
 }
@@ -134,14 +134,14 @@ func (a *App) StartTick(args StartTickArgs) (StartTickResult, error) {
 
 func (a *App) PickFile(args PickFileArgs) (PickFileResult, error) {
 	if args.Title == "" {
-		args.Title = "Chọn file"
+		args.Title = "Pick a file"
 	}
 	path, ok, err := hfd.OpenFileDialog(hfd.FileDialogOptions{
 		Title:   args.Title,
 		StartDir: ".",
 		Filters: []hfd.FileFilter{
-			{Name: "Mọi file", Patterns: []string{"*"}},
-			{Name: "Văn bản", Patterns: []string{"*.txt", "*.md", "*.go"}},
+			{Name: "All files", Patterns: []string{"*"}},
+			{Name: "Text", Patterns: []string{"*.txt", "*.md", "*.go"}},
 		},
 	})
 	if err != nil {
@@ -198,16 +198,16 @@ func (a *App) SendNotification(args NotifyArgs) (NotifyResult, error) {
 func (a *App) AskConfirm(_ SetTextArgs) (EchoResult, error) {
 	ok, err := hfd.ShowMessage(hfd.MessageDialogOptions{
 		Title:   "HFD",
-		Message: "Bọn mình đã đến Phase 4 (dialog native)! Vui chứ?",
+		Message: "We have reached Phase 4 (native dialogs)! Fun, right?",
 		Level:   hfd.MessageQuestion,
 	})
 	if err != nil {
 		return EchoResult{}, err
 	}
 	if ok {
-		return EchoResult{Text: "Bố trả lời: CÓ!"}, nil
+		return EchoResult{Text: "Answered: YES!"}, nil
 	}
-	return EchoResult{Text: "Hehe trả lời: KHÔNG!"}, nil
+	return EchoResult{Text: "Answered: NO!"}, nil
 }
 
 func main() {
@@ -236,13 +236,13 @@ func main() {
 				Tooltip: "HFD Demo — Go + GTK",
 				IconPath: "applications-system", // theme icon (hoặc file PNG)
 				Items: []hfd.TrayItem{
-					{Label: "Tăng đếm tick", Action: "tray-tick"},
-					{Label: "Giới thiệu", Action: "tray-about"},
-					{Label: "Thoát", Action: "tray-quit"},
+					{Label: "Fire a tick", Action: "tray-tick"},
+					{Label: "About", Action: "tray-about"},
+					{Label: "Quit", Action: "tray-quit"},
 				},
 			})
 			if err == nil {
-				log.Println("tray: đăng ký OK")
+				log.Println("tray: registered OK")
 				return
 			}
 			// chưa Run → thử lại; lỗi khác → thôi.
