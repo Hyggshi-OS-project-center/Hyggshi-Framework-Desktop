@@ -22,5 +22,5 @@ export function runBuild(dir) {
 		env: goEnv(),
 	});
 	if (r2.status !== 0) throw new Error("Go build failed");
-	console.log("✓ build xong");
+	console.log("✓ build done");
 }

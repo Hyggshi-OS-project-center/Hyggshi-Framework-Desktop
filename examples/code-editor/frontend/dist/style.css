@@ -1,0 +1,160 @@
+/* HFD Code Editor — dark UI, no dependencies */
+
+:root {
+	--bg: #14161a;
+	--panel: #1c1f26;
+	--panel2: #22262f;
+	--border: #2e333d;
+	--fg: #d7dde5;
+	--dim: #8b96a5;
+	--accent: #6ea8fe;
+	--ok: #7ce38b;
+	--warn: #ffd387;
+	--err: #ff8f8f;
+	--mono: "JetBrains Mono", "Cascadia Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+	margin: 0;
+	height: 100%;
+	background: var(--bg);
+	color: var(--fg);
+	font-family: var(--mono);
+	font-size: 13.5px;
+}
+
+#app {
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+}
+
+/* ---- toolbar ---- */
+#toolbar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	background: var(--panel);
+	border-bottom: 1px solid var(--border);
+	user-select: none;
+}
+
+#toolbar strong { color: var(--dim); font-weight: 500; }
+
+#toolbar button {
+	background: var(--panel2);
+	color: var(--fg);
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	padding: 5px 12px;
+	font-family: inherit;
+	font-size: 12.5px;
+	cursor: pointer;
+}
+#toolbar button:hover { background: #2a2f3a; border-color: #3b4250; }
+#toolbar button:active { transform: translateY(1px); }
+
+#file-name {
+	background: var(--bg);
+	color: var(--accent);
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	padding: 5px 10px;
+	font-family: inherit;
+	width: 30ch;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+#dirty-dot { color: var(--warn); }
+
+/* ---- editor ---- */
+#editor-wrap {
+	display: flex;
+	flex: 1;
+	min-height: 0;
+}
+
+#gutter {
+	flex: none;
+	width: 3.6em;
+	padding: 10px 6px 10px 0;
+	background: var(--panel);
+	border-right: 1px solid var(--border);
+	color: var(--dim);
+	text-align: right;
+	font-family: var(--mono);
+	font-size: 13.5px;
+	line-height: 20px;
+	white-space: pre;
+	overflow: hidden;
+	user-select: none;
+}
+
+#code-area {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+}
+
+#editor, #highlight {
+	position: absolute;
+	inset: 0;
+	margin: 0;
+	padding: 10px 12px;
+	font-family: var(--mono);
+	font-size: 13.5px;
+	line-height: 20px;
+	tab-size: 4;
+	border: 0;
+	overflow: auto;
+	white-space: pre;
+}
+
+#highlight {
+	pointer-events: none;
+	color: var(--fg);
+}
+#highlight code { margin: 0; padding: 0; }
+
+#editor {
+	position: absolute;
+	resize: none;
+	background: transparent;
+	color: transparent;         /* text rendered by the highlight layer */
+	caret-color: var(--fg);
+	outline: none;
+}
+#editor::selection { background: rgba(110, 168, 254, 0.35); }
+
+/* wrap mode */
+#app.wrap #editor, #app.wrap #highlight { white-space: pre-wrap; }
+
+/* syntax token colors */
+.tk-k { color: #c678dd; }   /* keyword */
+.tk-s { color: #98c379; }   /* string */
+.tk-c { color: #5c6370; font-style: italic; }  /* comment */
+.tk-n { color: #d19a66; }   /* number */
+.tk-f { color: #61afef; }   /* function / tag */
+.tk-t { color: #56b6c2; }   /* type / attribute */
+.tk-p { color: #e5c07b; }   /* punctuation / prop */
+
+/* ---- statusbar ---- */
+#statusbar {
+	display: flex;
+	gap: 18px;
+	padding: 5px 12px;
+	background: var(--panel);
+	border-top: 1px solid var(--border);
+	color: var(--dim);
+	font-size: 12px;
+	user-select: none;
+}
+
+#lang { color: var(--accent); }
+#save-note { margin-left: auto; }
+#save-note.ok { color: var(--ok); }
+#save-note.err { color: var(--err); }

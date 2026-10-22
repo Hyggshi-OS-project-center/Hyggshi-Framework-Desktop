@@ -1,0 +1,9 @@
+{
+	"app": { "dir": "." },
+	"bindingsDir": "frontend/dist/hfd",
+	"goBuild": "go build -o build/bin/hfd-code .",
+	"frontend": {
+		"dir": "frontend",
+		"port": 5174
+	}
+}

@@ -27,7 +27,7 @@
 		}
 	}
 
-	console.log("[hfd] runtime injected qua user script");
+	console.log("[hfd] runtime injected via user script");
 	const listeners = new Map();
 
 	window.hfd = {

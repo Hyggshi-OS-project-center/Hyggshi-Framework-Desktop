@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>HFD Code</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="app">
+	<header id="toolbar">
+		<button id="btn-new"  title="Ctrl+N">New</button>
+		<button id="btn-open" title="Ctrl+O">Open…</button>
+		<button id="btn-save" title="Ctrl+S">Save</button>
+		<input id="file-name" readonly value="untitled.txt" title="current file" />
+		<span id="dirty-dot" title="unsaved changes" hidden>●</span>
+		<strong>— HFD Code (demo)</strong>
+	</header>
+
+	<div id="editor-wrap">
+		<div id="gutter" aria-hidden="true">1</div>
+		<div id="code-area">
+			<pre id="highlight" aria-hidden="true"><code id="hl-code"></code></pre>
+			<textarea id="editor" spellcheck="false" autocomplete="off" autocorrect="off"></textarea>
+		</div>
+	</div>
+
+	<footer id="statusbar">
+		<span id="pos">Ln 1, Col 1</span>
+		<span id="stats">0 lines · 0 B</span>
+		<span id="lang">plain text</span>
+		<span id="save-note"></span>
+	</footer>
+</div>
+<script type="module" src="/hfd/bindings.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
