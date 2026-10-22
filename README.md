@@ -24,7 +24,7 @@ Full architecture details: `ARCHITECTURE.md`.
 
 ```bash
 # Linux dev machine: Go + Node + GTK3/WebKitGTK dev packages (apt)
-git clone <repo> && cd HFD
+git clone https://github.com/Hyggshi-OS-project-center/Hyggshi-Framework-Desktop.git && cd Hyggshi-Framework-Desktop
 npm i --prefix hfd-cli 2>/dev/null || true   # CLI is 0-dep — this step is optional
 
 cd examples/demo
