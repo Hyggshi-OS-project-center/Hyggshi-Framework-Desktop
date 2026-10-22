@@ -1,5 +1,7 @@
 # HFD — Hyggshi Framework Desktop
 
+[![CI](https://github.com/Hyggshi-OS-project-center/Hyggshi-Framework-Desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/Hyggshi-OS-project-center/Hyggshi-Framework-Desktop/actions/workflows/ci.yml)
+
 A desktop framework written 100% in-house (no Wails/Tauri/Electron):
 
 - **Go** — runtime + native API (CGo, GTK3 + WebKitGTK on Linux)
@@ -19,6 +21,14 @@ A desktop framework written 100% in-house (no Wails/Tauri/Electron):
 | 6 | Security: 2-layer origin allowlist + per-launch token + CSP | ✅ |
 
 Full architecture details: `ARCHITECTURE.md`.
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`), 3 jobs on ubuntu-latest, run on push/PR to main:
+
+- **cli** — strict `tsc` build of `hfd-cli`, verifies `dist/` is in sync with `ts/`, smoke tests `hfd new`
+- **core** — `go vet` + `go build` (plain and `-tags hfd_tray`) with the GTK/WebKitGTK dev packages
+- **examples** — the exact user flow: `hfd bindings` / `hfd build` / `hfd package` on the demo + code-editor, react-demo (npm + vite + go build), and uploads the built `.deb` as an artifact
 
 ## Quickstart
 

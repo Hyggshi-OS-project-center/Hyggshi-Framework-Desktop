@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # 1. TypeScript CLI: strict tsc build + verify dist/ is committed in sync
+  cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: tsc build (strict)
+        working-directory: hfd-cli
+        run: |
+          npm install
+          npm run build
+      - name: dist/ in sync with ts/
+        working-directory: hfd-cli
+        run: |
+          if [ -n "$(git status --porcelain dist)" ]; then
+            echo "dist/ out of date — run 'npm run build' in hfd-cli and commit"
+            git diff -- dist | head
+            exit 1
+          fi
+      - name: Smoke test
+        run: |
+          node hfd-cli/bin/hfd.mjs help
+          node hfd-cli/bin/hfd.mjs new /tmp/smoke-app --template react
+          test -f /tmp/smoke-app/main.go
+
+  # 2. Go core: vet + build both configurations (with and without tray)
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.x"
+      - name: Install GTK / WebKitGTK dev packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev
+      - name: go vet
+        run: go vet ./...
+      - name: go build (core only)
+        run: go build ./...
+      - name: go build (-tags hfd_tray)
+        run: go build -tags hfd_tray ./...
+
+  # 3. Examples end-to-end: bindings codegen + frontend build + Go build
+  #    through the CLI itself (the same flow users run), then package a .deb
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.x"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install GTK / WebKitGTK dev packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev
+      - name: Environment check (hfd doctor)
+        run: node hfd-cli/bin/hfd.mjs doctor examples/code-editor
+      - name: demo (vanilla) — bindings + build
+        working-directory: examples/demo
+        run: |
+          node ../../hfd-cli/bin/hfd.mjs bindings
+          node ../../hfd-cli/bin/hfd.mjs build
+      - name: code-editor — package .deb
+        working-directory: examples/code-editor
+        run: node ../../hfd-cli/bin/hfd.mjs package
+      - name: react-demo — npm + bindings + build
+        working-directory: examples/react-demo/frontend
+        run: |
+          npm install
+          npm run build
+      - name: react-demo — go build
+        working-directory: examples/react-demo
+        run: go build -o build/bin/hfd-react-demo .
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hfd-code-deb
+          path: examples/code-editor/build/*.deb
+          if-no-files-found: error
