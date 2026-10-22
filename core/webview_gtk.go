@@ -799,9 +799,24 @@ func (e *engine) finishText(req unsafe.Pointer, text string) {
 	e.finish(req, []byte(text), "text/plain; charset=utf-8")
 }
 
+var embedSubOnce sync.Once
+
+// readFile serves name from the app's Assets FS. For developer convenience:
+// when the FS looks like a raw embed.FS (frontend/dist prefix present), fall
+// back to that layout and print a one-time hint — the correct form is
+// fs.Sub(distFS, "frontend/dist").
 func readFile(fsys fs.FS, name string) ([]byte, error) {
 	f, err := fsys.Open(name)
 	if err != nil {
+		if f2, err2 := fsys.Open("frontend/dist/" + name); err2 == nil {
+			embedSubOnce.Do(func() {
+				fmt.Fprintln(os.Stderr,
+					"hfd [hint]: serving Assets as frontend/dist/<name> — "+
+						"wrap your embed.FS with fs.Sub(distFS, \"frontend/dist\")")
+			})
+			defer f2.Close()
+			return io.ReadAll(f2)
+		}
 		return nil, err
 	}
 	defer f.Close()

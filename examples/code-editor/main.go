@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -11,6 +12,15 @@ import (
 
 //go:embed all:frontend/dist
 var distFS embed.FS
+
+// assets — the root served at hfd://app/ (strip the embed prefix).
+func mustSub() fs.FS {
+	sub, err := fs.Sub(distFS, "frontend/dist")
+	if err != nil {
+		log.Fatal("hfd-code: embed assets: ", err)
+	}
+	return sub
+}
 
 // ---- Typed DTOs — the source of the bindings codegen ------------------------
 // JSON field names are the contract with the frontend, not the Go field names.
@@ -125,7 +135,7 @@ func main() {
 		Title:  titleFor("", false),
 		Width:  1000,
 		Height: 720,
-		Assets: distFS,
+		Assets: mustSub(),
 		MenuLabel: "HFD Code",
 		Menu: []hfd.MenuItem{
 			{Label: "New", Action: "file-new"},
