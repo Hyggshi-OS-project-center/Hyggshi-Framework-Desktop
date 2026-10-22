@@ -1,0 +1,11 @@
+{
+	"app": { "dir": "." },
+	"bindingsDir": "frontend/src/hfd",
+	"goBuild": "go build -o build/bin/react-demo .",
+	"frontend": {
+		"dir": "frontend",
+		"dev": "npm run dev",
+		"build": "npm run build",
+		"port": 5173
+	}
+}

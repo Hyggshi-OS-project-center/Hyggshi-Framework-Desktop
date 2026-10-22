@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<title>HFD Demo — Phase 2</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="app">
+	<h1>HFD Demo <span class="tag">BindTyped + codegen</span></h1>
+	<p class="sub">Runtime JS giờ tự inject bằng WebKit user script — index.html không cần script tag</p>
+
+	<div id="boot" class="output boot">…</div>
+
+	<section class="card">
+		<h2>1. Call typed <code>Greet</code></h2>
+		<div class="row">
+			<input id="name" value="Hyggshi" placeholder="Tên bạn" />
+			<button id="greet">Greet</button>
+		</div>
+		<div id="greet-result" class="output">…</div>
+	</section>
+
+	<section class="card">
+		<h2>2. Call typed <code>SysInfo</code> → struct Go</h2>
+		<div class="row">
+			<button id="sysinfo">Lấy thông tin hệ thống</button>
+		</div>
+		<pre id="sysinfo-result" class="output">…</pre>
+	</section>
+
+	<section class="card">
+		<h2>3. Event Go → JS (<code>times</code> từ JS → Go)</h2>
+		<div class="row">
+			<button id="tick">Tick 3 lần</button>
+		</div>
+		<div id="tick-result" class="output">Chưa bắt đầu</div>
+	</section>
+
+	<section class="card">
+		<h2>4. Native API: dialog file / clipboard / notification</h2>
+		<div class="row">
+			<button id="pick">Mở file…</button>
+			<button id="save">Lưu ghi chú</button>
+			<button id="confirm">Hỏi Yes/No</button>
+		</div>
+		<div class="row" style="margin-top:8px">
+			<button id="clip-set">Copy vào clipboard</button>
+			<button id="clip-get">Đọc clipboard</button>
+			<button id="notify">Gửi notification</button>
+		</div>
+		<div id="native-result" class="output">…</div>
+	</section>
+
+	<section class="card">
+		<h2>5. Menu bar GTK</h2>
+		<p class="hint">Menu "HFD" trên cửa sổ → bấm item → event <code>menu</code> về JS</p>
+		<div id="menu-result" class="output">Chưa chọn item nào</div>
+	</section>
+</div>
+<script type="module" src="/hfd/bindings.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

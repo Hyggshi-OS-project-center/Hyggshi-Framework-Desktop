@@ -1,0 +1,16 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Binary build output
+build/
+examples/demo/hfd-demo
+examples/react-demo/react-demo
+*.test
+
+# Log / file tạm
+*.log
+
+# Dự án khác nằm trong thư mục (không thuộc HFD core)
+hfd-app/
+desktop-framework-comparison.html
