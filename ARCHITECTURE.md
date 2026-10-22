@@ -56,23 +56,35 @@ hfd.on("tick", (data) => render(data))                      // bắt event Go �
   `useHfdEvent(auto-unmount)`, `call/on` typed; tsc clean. `hfd new` scaffold
   react + vue (vite, tsconfig, App demo dùng hooks). Demo `examples/react-demo`
   đã build + chạy (useHfdCall gọi SysInfo ngay khi mount).
-- **Phase 4 ✅ (lần đầu)**: native API linux: `OpenFileDialog/SaveFileDialog` (modal
-  GTK + filter), `ShowMessage` (info/warning/error/question), `SetClipboard/
-  GetClipboard`, `Notify` (notify-send), `SetTitle`, `CloseWindow`, Menu bar
-  (`Options.Menu` + event `menu` → JS). Demo có card test + menu "HFD".
-  Còn lại Phase 5+~7 (tray, native menu context, portal/GNotification).
+- **Phase 4 ✅ (đầy đủ theo plan linux-hop)**: native API linux:
+  `OpenFileDialog/SaveFileDialog` (modal GTK + filter), `ShowMessage`
+  (info/warning/error/question), `SetClipboard/GetClipboard`, `Notify`
+  (notify-send), `SetTitle`, `CloseWindow`, Menu bar (`Options.Menu` + event
+  `menu` → JS), **Tray** (`SetTray` — StatusNotifierItem + DBusMenu qua
+  godbus, sau build tag `-tags hfd_tray`; core mặc định vẫn 0 external dep).
+  Tray verified: đăng ký vào `org.kde.StatusNotifierWatcher` thành công,
+  object tiếp tục giữ >8s (shell host chấp nhận), GetAll properties chuẩn
+  signature `(ia{sv}av)` của layout. GNOME cần extension AppIndicator (đã có).
 - **Dev flow ✅**: `hfd dev` end-to-end trên react-demo — vite lên port → window
   nạp `http://localhost:5173` qua `HFD_DEV_URL` → IPC hoạt động; sửa App.tsx
   → vite bắn `hmr update` tự reload (không restart app).
-- **Phase 6 ✅ (lần đầu)** — origin isolation 2 tầng:
-  1. runtime user script inject **có allow_list** (`webkit_user_script_new`) —
-     `window.hfd` chỉ tồn tại trên origin pattern khớp `Options.AllowOrigins`
-     (mặc định `hfd://app/*` + `DevURL/*`); origin lạ không có bridge để gọi.
-  2. mỗi IPC từ JS kèm URI của page; Go khớp pattern glob trước dispatch —
-     tầng 2 phòng khi bridge nhờ lẫn. Negative test: AllowOrigins xa lạ →
-     0 IPC tới Go (verified). Expression còn thiếu: CSP header, capability
-     token xác thực chặt hơn glob origin.
+- **Phase 6 ✅** — security 3 tầng:
+  1. capability inject: user script chỉ inject trên origin pattern khớp
+     `Options.AllowOrigins` (mặc định `hfd://app/*` + `DevURL/*`) — origin lạ
+     không có bridge nào để gọi (negative test: AllowOrigins xa lạ → JS lỗi
+     `window.hfd undefined`, 0 IPC tới Go).
+  2. URI check: mỗi IPC kèm URI page; Go khớp glob (constant-time không,
+     glob) trước dispatch — phòng bridge nhờ lẫn qua frame.
+  3. per-launch token: `crypto/rand` 32B hex, inject cùng runtime
+     (`window.__HFD_CONFIG`), mọi IPC phải mang token đúng — compare bằng
+     `crypto/subtle.ConstantTimeCompare`. Token khác → từ chối.
+  CSP: `Options.CSP` → inject `<meta http-equiv>` rất sớm (DOCUMENT_START
+  chạy trước script app). CSP strict demo đã chạy không phá IPC.
+- **Phase 5 scaffold ✅**: `core/webview_windows.go` (WebView2) +
+  `core/webview_darwin.go` (WKWebView) + `docs/PHASE5-BACKENDS.md`
+  (kiến trúc per-PR + 12 mục test plan/backend). Cross-compile verified:
+  `GOOS=windows go build` ✓, `GOOS=darwin go build` ✓ — chưa chạy được
+  mà chỉ stub trả lỗi có hướng dẫn; gọi cụm khi có VM/Mac.
 - **Phase 3**: `@hfd/react` — hook `useHfdCall` / `useHfdEvent`; template React/Vue cho `hfd new`.
-- **Phase 4**: native API thêm: dialog (open/save), clipboard, menu, notification, tray (StatusNotifier).
-- **Phase 5**: backend mac (WKWebView) / win (WebView2), hỗ trợ `webkit2gtk-4.0`.
-- **Phase 6**: security (allowlist handler + capability token), packaging (deb.AppImage) + signing.
+- **Phase 5**: backend mac (WKWebView) / win (WebView2) — scaffold sẵn, awaiting VM.
+- **Tiếp theo**: packaging (deb/AppImage), menu context, portal/GNotification, `hfd doctor`.
