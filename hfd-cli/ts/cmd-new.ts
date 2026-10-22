@@ -1,14 +1,24 @@
+// cmd-new.ts — `hfd new <name> [--template react|vue] [--core path]`
+//
+// Scaffolds a fresh HFD project (react or vue + vite). The bundled template
+// uses BindTyped + @hfd/react; go.mod replaces the core by a relative path
+// configured with --core.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-// `hfd new <name>` — scaffold a fresh HFD project (react or vue + vite).
-// The bundled template uses BindTyped + @hfd/react; go.mod replaces the core
-// by a relative path configured with --core.
+export type Template = "react" | "vue";
 
-function reactTemplates(name, moduleName, coreRel, reactRel) {
- const T = {};
+export interface NewOptions {
+	template?: string;
+	corePath?: string;
+}
 
- T["go.mod"] = `module ${moduleName}
+type FileMap = Record<string, string>;
+
+function reactTemplates(name: string, moduleName: string, coreRel: string, reactRel: string): FileMap {
+	const T: FileMap = {};
+
+	T["go.mod"] = `module ${moduleName}
 
 go 1.27
 
@@ -17,7 +27,7 @@ require github.com/hyggshi/hfd v0.1.0
 replace github.com/hyggshi/hfd => ${coreRel}
 `;
 
- T["main.go"] = `package main
+	T["main.go"] = `package main
 
 import (
 	"embed"
@@ -93,7 +103,7 @@ func main() {
 }
 `;
 
- T["hfd.json"] = `{
+	T["hfd.json"] = `{
 	"app": { "dir": "." },
 	"bindingsDir": "frontend/src/hfd",
 	"goBuild": "go build -o build/bin/${name} .",
@@ -106,7 +116,7 @@ func main() {
 }
 `;
 
- T["frontend/package.json"] = `{
+	T["frontend/package.json"] = `{
   "name": "${name}-frontend",
   "private": true,
   "type": "module",
@@ -129,7 +139,7 @@ func main() {
 }
 `;
 
- T["frontend/vite.config.ts"] = `import react from "@vitejs/plugin-react";
+	T["frontend/vite.config.ts"] = `import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 // Build output ./dist — go:embed all:frontend/dist embeds it into the binary.
@@ -139,7 +149,7 @@ export default defineConfig({
 });
 `;
 
- T["frontend/tsconfig.json"] = `{
+	T["frontend/tsconfig.json"] = `{
 	"compilerOptions": {
 		"target": "ES2022",
 		"module": "ESNext",
@@ -154,8 +164,8 @@ export default defineConfig({
 }
 `;
 
- T["frontend/index.html"] = `<!doctype html>
-<html lang="vi">
+	T["frontend/index.html"] = `<!doctype html>
+<html lang="en">
 <head>
 	<meta charset="utf-8" />
 </head>
@@ -166,7 +176,7 @@ export default defineConfig({
 </html>
 `;
 
- T["frontend/src/main.tsx"] = `import React from "react";
+	T["frontend/src/main.tsx"] = `import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./styles.css";
@@ -174,7 +184,7 @@ import "./styles.css";
 ReactDOM.createRoot(document.getElementById("root")!).render(<App />);
 `;
 
- T["frontend/src/App.tsx"] = `import { useState } from "react";
+	T["frontend/src/App.tsx"] = `import { useState } from "react";
 import { call, useHfdCall } from "@hfd/react";
 
 interface SysInfo {
@@ -220,7 +230,7 @@ export default function App() {
 }
 `;
 
- T["frontend/src/styles.css"] = `:root { color-scheme: dark; }
+	T["frontend/src/styles.css"] = `:root { color-scheme: dark; }
 body {
 	margin: 0;
 	font: 15px/1.55 system-ui, sans-serif;
@@ -247,18 +257,18 @@ button {
 }
 `;
 
- return T;
+	return T;
 }
 
-function vueTemplates(name, moduleName, coreRel) {
- const T = {};
- // Go main.go, hfd.json, go.mod shared with react (same paths)
- const base = reactTemplates(name, moduleName, coreRel, "../packages/react");
- T["go.mod"] = base["go.mod"];
- T["main.go"] = base["main.go"];
- T["hfd.json"] = base["hfd.json"];
+function vueTemplates(name: string, moduleName: string, coreRel: string): FileMap {
+	const T: FileMap = {};
+	// Go main.go, hfd.json, go.mod shared with react (same paths)
+	const base = reactTemplates(name, moduleName, coreRel, "../packages/react");
+	for (const k of ["go.mod", "main.go", "hfd.json"] as const) {
+		T[k] = base[k] ?? "";
+	}
 
- T["frontend/package.json"] = `{
+	T["frontend/package.json"] = `{
   "name": "${name}-frontend",
   "private": true,
   "type": "module",
@@ -276,7 +286,7 @@ function vueTemplates(name, moduleName, coreRel) {
 }
 `;
 
- T["frontend/vite.config.js"] = `import vue from "@vitejs/plugin-vue";
+	T["frontend/vite.config.js"] = `import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vite";
 
 export default defineConfig({
@@ -285,8 +295,8 @@ export default defineConfig({
 });
 `;
 
- T["frontend/index.html"] = `<!doctype html>
-<html lang="vi">
+	T["frontend/index.html"] = `<!doctype html>
+<html lang="en">
 <head><meta charset="utf-8" /></head>
 <body>
 	<div id="app"></div>
@@ -295,13 +305,13 @@ export default defineConfig({
 </html>
 `;
 
- T["frontend/src/main.js"] = `import { createApp } from "vue";
+	T["frontend/src/main.js"] = `import { createApp } from "vue";
 import App from "./App.vue";
 
 createApp(App).mount("#app");
 `;
 
- T["frontend/src/App.vue"] = `<script setup>
+	T["frontend/src/App.vue"] = `<script setup>
 import { ref } from "vue";
 
 const sys = ref(null);
@@ -344,14 +354,15 @@ button { background: #2d6fb8; border: 0; color: #fff; border-radius: 6px; paddin
 </style>
 `;
 
- return T;
+	return T;
 }
 
-function safeModule(name) {
+function safeModule(name: string): string {
 	return name.replace(/[^a-zA-Z0-9_-]/g, "").replace(/^_+/, "") || "hfdapp";
 }
 
-export async function runNew(name, { template = "react", corePath = "../../core" }) {
+export async function runNew(name: string, opts: NewOptions = {}): Promise<void> {
+	const { template = "react", corePath = "../../core" } = opts;
 	const moduleName = safeModule(name);
 	const target = resolve(process.cwd(), name);
 	if (template === "react") {
@@ -371,7 +382,7 @@ Next steps:
 `);
 }
 
-function writeFiles(root, files) {
+function writeFiles(root: string, files: FileMap): void {
 	for (const [rel, content] of Object.entries(files)) {
 		const path = join(root, rel);
 		mkdirSync(join(path, ".."), { recursive: true });

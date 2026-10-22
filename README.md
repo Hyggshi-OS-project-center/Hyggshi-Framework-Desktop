@@ -25,7 +25,7 @@ Full architecture details: `ARCHITECTURE.md`.
 ```bash
 # Linux dev machine: Go + Node + GTK3/WebKitGTK dev packages (apt)
 git clone https://github.com/Hyggshi-OS-project-center/Hyggshi-Framework-Desktop.git && cd Hyggshi-Framework-Desktop
-npm i --prefix hfd-cli 2>/dev/null || true   # CLI is 0-dep — this step is optional
+npm i --prefix hfd-cli 2>/dev/null || true   # only needed to REBUILD the CLI (tsc) — running it is 0-dep
 
 cd examples/demo
 node ../../hfd-cli/bin/hfd.mjs bindings   # generates bindings.d.ts + bindings.js
@@ -77,7 +77,8 @@ safety via `bindings.d.ts`.
 ```
 core/           Go runtime + GTK/WebKitGTK backend (0 external deps by default)
   runtime/      hfd.js — bridge injected at DOCUMENT_START (0-dep)
-hfd-cli/src/    Node CLI, 0-dep (bindings/build/dev/new)
+hfd-cli/ts/     CLI source in TypeScript (strict, tsc → dist/ committed)
+hfd-cli/dist/   compiled CLI output — what bin/hfd.mjs runs (0-dep, no npm needed)
 packages/react/ @hfd/react hooks
 examples/demo/  vanilla demo with full feature coverage (security, menu, tray, native API)
 examples/react-demo/ React demo (vite HMR)

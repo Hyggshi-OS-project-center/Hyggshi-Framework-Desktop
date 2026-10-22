@@ -1,9 +1,14 @@
-import { runBindings } from "./cmd-bindings.mjs";
-import { runBuild } from "./cmd-build.mjs";
-import { runDev } from "./cmd-dev.mjs";
-import { runNew } from "./cmd-new.mjs";
-import { runDoctor } from "./cmd-doctor.mjs";
-import { runPackage } from "./cmd-package.mjs";
+// cli.ts — command dispatch for the hfd CLI.
+//
+// Source lives in TypeScript (ts/), compiled to dist/ with tsc. The published
+// entry bin/hfd.mjs only imports dist/cli.mjs, so end users never need the
+// dev toolchain (runtime stays zero-dependency, node built-ins only).
+import { runBindings } from "./cmd-bindings.js";
+import { runBuild } from "./cmd-build.js";
+import { runDev } from "./cmd-dev.js";
+import { runNew } from "./cmd-new.js";
+import { runDoctor } from "./cmd-doctor.js";
+import { runPackage } from "./cmd-package.js";
 
 const HELP = `
 hfd — CLI for the Hyggshi Framework Desktop
@@ -29,13 +34,13 @@ Configure via 'hfd.json' in the project dir:
   }
 `;
 
-export async function main(argv) {
+export async function main(argv: string[]): Promise<void> {
 	if (argv[0] === "new") {
 		const rest = argv.slice(1);
 		const name = rest.find((a) => !a.startsWith("-"));
-		const flag = (n, dflt) => {
+		const flag = (n: string, dflt: string): string => {
 			const i = rest.indexOf(n);
-			return i >= 0 && rest[i + 1] ? rest[i + 1] : dflt;
+			return i >= 0 && rest[i + 1] ? (rest[i + 1] as string) : dflt;
 		};
 		const template = flag("--template", "react");
 		const corePath = flag("--core", "../../core");

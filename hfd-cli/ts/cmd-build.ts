@@ -1,7 +1,11 @@
+// cmd-build.ts — `hfd build [dir]`
+//
+// Builds the frontend (if a build command is configured), then runs the Go
+// build. Output lands wherever goBuild points (default build/bin/<module>).
 import { spawnSync } from "node:child_process";
-import { loadConfig, goEnv } from "./config.mjs";
+import { loadConfig, goEnv } from "./config.js";
 
-export function runBuild(dir) {
+export async function runBuild(dir: string): Promise<void> {
 	const cfg = loadConfig(dir);
 
 	if (cfg.frontendBuild) {

@@ -1,13 +1,20 @@
 {
   "name": "@hyggshi/hfd-cli",
   "version": "0.1.0",
-  "description": "CLI cho Hyggshi Framework Desktop — bindings codegen, build, dev",
+  "description": "CLI for Hyggshi Framework Desktop — bindings codegen, build, dev",
   "type": "module",
   "bin": {
     "hfd": "bin/hfd.mjs"
   },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
   },
   "license": "MIT"
 }
