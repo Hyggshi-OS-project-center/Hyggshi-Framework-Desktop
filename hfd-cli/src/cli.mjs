@@ -2,6 +2,8 @@ import { runBindings } from "./cmd-bindings.mjs";
 import { runBuild } from "./cmd-build.mjs";
 import { runDev } from "./cmd-dev.mjs";
 import { runNew } from "./cmd-new.mjs";
+import { runDoctor } from "./cmd-doctor.mjs";
+import { runPackage } from "./cmd-package.mjs";
 
 const HELP = `
 hfd — CLI for the Hyggshi Framework Desktop
@@ -13,6 +15,8 @@ Commands:
   hfd dev    [dir]     Run dev server (vite...) + wire HFD_DEV_URL
   hfd new    <name> [--template react|vue] [--core path]
                        Scaffold a fresh HFD project (default: react + vite)
+  hfd doctor [dir]     Check the build environment (Go/node/GTK/WebKitGTK/tray)
+  hfd package [dir]    Build + assemble an installable .deb (usr/local/bin + .desktop)
   hfd help             Show this help
 
 Configure via 'hfd.json' in the project dir:
@@ -54,6 +58,12 @@ export async function main(argv) {
 			break;
 		case "dev":
 			await runDev(dir);
+			break;
+		case "doctor":
+			process.exitCode = runDoctor(dir);
+			break;
+		case "package":
+			await runPackage(dir);
 			break;
 		case "help":
 		case "--help":

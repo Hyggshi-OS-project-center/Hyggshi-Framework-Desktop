@@ -43,6 +43,8 @@ Windows/macOS builds are not enabled yet (scaffold only) — see `docs/PHASE5-BA
 | `hfd bindings` | runs `HFD_CODEGEN=bindings go run .` → schema JSON → `bindings.d.ts` + `bindings.js` into `bindingsDir` |
 | `hfd build` | `hfd bindings` + `go build` (uses `goBuild` from hfd.json) |
 | `hfd dev` | starts the dev server (vite/npm) + builds Go with `HFD_DEV_URL` — HMR without app restart |
+| `hfd doctor` | checks the build environment (Go/node/GTK3/WebKitGTK/libsoup/tray host) |
+| `hfd package` | builds the app + assembles an installable .deb (`usr/local/bin/<bin>` + `.desktop`) |
 
 ## Main API (Go)
 
@@ -79,6 +81,7 @@ hfd-cli/src/    Node CLI, 0-dep (bindings/build/dev/new)
 packages/react/ @hfd/react hooks
 examples/demo/  vanilla demo with full feature coverage (security, menu, tray, native API)
 examples/react-demo/ React demo (vite HMR)
+examples/code-editor/ mini code editor (open/save dialogs, syntax highlight, gutter, Ctrl+S/O)
 docs/           Phase 5 test plan (Windows/macOS)
 ```
 

@@ -102,5 +102,4 @@ hfd.on("tick", (data) => render(data))                      // receive Go events
   (per-PR architecture + 12-item test plan per backend). Cross-compile
   verified: `GOOS=windows go build` ✓, `GOOS=darwin go build` ✓ — stubs
   return a descriptive error until a VM/Mac is available.
-- **Next up**: packaging (deb/AppImage), context menu, portal/GNotification,
-  `hfd doctor`.
+- **Next up**: AppImage packaging, context menu, portal/GNotification.
