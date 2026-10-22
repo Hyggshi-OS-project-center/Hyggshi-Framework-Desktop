@@ -1,9 +1,9 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-// `hfd new <tên>` — scaffold project HFD mới (react hoặc vue + vite).
-// Template gắn sẵn dùng BindTyped + @hfd/react; go.mod replace core qua
-// đường dẫn tương đối cấu hình --core.
+// `hfd new <name>` — scaffold a fresh HFD project (react or vue + vite).
+// The bundled template uses BindTyped + @hfd/react; go.mod replaces the core
+// by a relative path configured with --core.
 
 function reactTemplates(name, moduleName, coreRel, reactRel) {
  const T = {};
@@ -54,9 +54,9 @@ type App struct{}
 
 func (a *App) Greet(args GreetArgs) (GreetResult, error) {
 	if args.Name == "" {
-		args.Name = "bạn"
+		args.Name = "there"
 	}
-	return GreetResult{Message: "Xin chào " + args.Name + " từ HFD!"}, nil
+	return GreetResult{Message: "Hello " + args.Name + " from HFD!"}, nil
 }
 
 func (a *App) SysInfo(_ SysInfoArgs) (SysInfoResult, error) {
@@ -132,7 +132,7 @@ func main() {
  T["frontend/vite.config.ts"] = `import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-// Build output ./dist — go:embed all:frontend/dist nhúng vào binary.
+// Build output ./dist — go:embed all:frontend/dist embeds it into the binary.
 export default defineConfig({
 	plugins: [react()],
 	build: { outDir: "dist" },
@@ -186,7 +186,7 @@ interface SysInfo {
 }
 
 export default function App() {
-	const sys = useHfdCall<null, SysInfo>("SysInfo"); // args mặc định → Go nhận "null"
+	const sys = useHfdCall<null, SysInfo>("SysInfo"); // default args → Go receives "null"
 	const [name, setName] = useState("Hyggshi");
 	const [greeted, setGreeted] = useState("");
 
@@ -198,11 +198,11 @@ export default function App() {
 	return (
 		<main className="app">
 			<h1>${name} <span className="tag">HFD + React + Vite</span></h1>
-			<p className="sub">useHfdCall tự gọi SysInfo khi mount — chạy qua IPC native.</p>
+			<p className="sub">useHfdCall calls SysInfo on mount — over native IPC.</p>
 
 			<section className="card">
-				{sys.loading && <p>đang tải SysInfo…</p>}
-				{sys.error && <p className="err">SysInfo lỗi: {String(sys.error.message)}</p>}
+				{sys.loading && <p>loading SysInfo…</p>}
+				{sys.error && <p className="err">SysInfo failed: {String(sys.error.message)}</p>}
 				{sys.data && (
 					<pre className="output">
 	{sys.data.hostname} • {sys.data.os}/{sys.data.arch} • {sys.data.cpus} CPUs • {sys.data.goVersion}
@@ -252,7 +252,7 @@ button {
 
 function vueTemplates(name, moduleName, coreRel) {
  const T = {};
- // Go main.go, hfd.json, go.mod dùng chung với react (path tương tự)
+ // Go main.go, hfd.json, go.mod shared with react (same paths)
  const base = reactTemplates(name, moduleName, coreRel, "../packages/react");
  T["go.mod"] = base["go.mod"];
  T["main.go"] = base["main.go"];
@@ -308,7 +308,7 @@ const sys = ref(null);
 const greeted = ref("");
 const name = ref("Hyggshi");
 
-// window.hfd được Go runtime inject tự động.
+// window.hfd is injected automatically by the Go runtime.
 window.hfd.call("SysInfo", {}).then((i) => { sys.value = i; });
 
 const greet = async () => {
@@ -359,15 +359,15 @@ export async function runNew(name, { template = "react", corePath = "../../core"
 	} else if (template === "vue") {
 		writeFiles(target, vueTemplates(name, "hfd/" + moduleName, corePath));
 	} else {
-		throw new Error(`template không rõ: ${template} (react hoặc vue)`);
+		throw new Error(`unknown template: ${template} (react or vue)`);
 	}
 
 	console.log(`✓ scaffold ${template} app → ${target}
-Bước tiếp theo:
+Next steps:
   cd ${name}
-  hfd bindings          # sinh frontend/src/hfd/bindings.* từ BindTyped
+  hfd bindings          # generate frontend/src/hfd/bindings.* from BindTyped
   (cd frontend && npm install && npm run build)
-  hfd dev               # hoặc: hfd build && build/bin/${name}
+  hfd dev               # or: hfd build && build/bin/${name}
 `);
 }
 
@@ -377,8 +377,8 @@ function writeFiles(root, files) {
 		mkdirSync(join(path, ".."), { recursive: true });
 		writeFileSync(path, content);
 	}
-	// go:embed all:frontend/dist cần thư mục tồn tại từ đầu (cả trước khi
-	// frontend npm run build lần đầu).
+	// go:embed all:frontend/dist needs the directory to exist up front (even
+	// before the first `npm run build` of the frontend).
 	mkdirSync(join(root, "frontend", "dist"), { recursive: true });
 	writeFileSync(join(root, "frontend", "dist", ".gitkeep"), "");
 }

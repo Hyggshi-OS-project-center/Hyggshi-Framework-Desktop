@@ -4,18 +4,18 @@ import { runDev } from "./cmd-dev.mjs";
 import { runNew } from "./cmd-new.mjs";
 
 const HELP = `
-hfd — CLI của Hyggshi Framework Desktop
+hfd — CLI for the Hyggshi Framework Desktop
 
-Lệnh:
-  hfd bindings [dir]   Sinh bindings TS type-safe từ Go (BindTyped),
-                       đọc schema bằng 'HFD_CODEGEN=bindings go run .'
-  hfd build [dir]      Build frontend rồi build binary Go → build/bin/
-  hfd dev    [dir]     Chạy dev server (vite...) + dùng env HFD_DEV_URL
-  hfd new    <tên> [--template react|vue] [--core path]
-                       Scaffold project HFD mới (mặc định: react + vite)
-  hfd help             Hiển thị help này
+Commands:
+  hfd bindings [dir]   Generate type-safe TS bindings from Go (BindTyped),
+                       reads the schema via 'HFD_CODEGEN=bindings go run .'
+  hfd build [dir]      Build the frontend, then the Go binary → build/bin/
+  hfd dev    [dir]     Run dev server (vite...) + wire HFD_DEV_URL
+  hfd new    <name> [--template react|vue] [--core path]
+                       Scaffold a fresh HFD project (default: react + vite)
+  hfd help             Show this help
 
-Cấu hình qua 'hfd.json' ở project dir:
+Configure via 'hfd.json' in the project dir:
   {
     "app":    { "dir": "." },
     "frontend": { "dir": "frontend", "dev": "npm run dev",
@@ -36,7 +36,7 @@ export async function main(argv) {
 		const template = flag("--template", "react");
 		const corePath = flag("--core", "../../core");
 		if (!name) {
-			console.error("hfd new cần <tên> — dùng: hfd new myapp --template react");
+			console.error("hfd new needs <name> — usage: hfd new myapp --template react");
 			process.exit(1);
 		}
 		await runNew(name, { template, corePath });
@@ -62,6 +62,6 @@ export async function main(argv) {
 			console.log(HELP.trim());
 			break;
 		default:
-			throw new Error(`lệnh không rõ: ${cmd} (gõ 'hfd help')`);
+			throw new Error(`unknown command: ${cmd} (try 'hfd help')`);
 	}
 }

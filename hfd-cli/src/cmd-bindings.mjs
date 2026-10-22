@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { loadConfig, goEnv } from "./config.mjs";
 import { emitBindings } from "./ts-emitter.mjs";
 
-// `hfd bindings [dir]` — chạy app Go ở codegen mode (HFD_CODEGEN=bindings go
-// run .) để thu schema JSON từ stdout, rồi sinh bindings.d.ts + bindings.js.
+// `hfd bindings [dir]` — runs the Go app in codegen mode (HFD_CODEGEN=bindings go
+// run .) to collect the schema JSON from stdout, then emits bindings.d.ts + bindings.js.
 export function runBindings(dir) {
 	const cfg = loadConfig(dir);
 
-	console.log(`▸ codegen bindings từ ${cfg.appDir}`);
+	console.log(`▸ codegen bindings from ${cfg.appDir}`);
 	let schemaText;
 	try {
 		schemaText = execFileSync("go", ["run", "."], {
@@ -20,13 +20,13 @@ export function runBindings(dir) {
 		});
 	} catch (err) {
 		const stderr = err.stderr || "";
-		throw new Error(`go run thất bại:\n${stderr.trim() || err.message}`);
+		throw new Error(`go run failed:\n${stderr.trim() || err.message}`);
 	}
 
 	const schemaJSON = schemaText.slice(schemaText.indexOf("{"));
 	const schema = JSON.parse(schemaJSON);
-	if (schema.error) throw new Error(`schema lỗi: ${schema.error}`);
-	if (!Array.isArray(schema.bindings)) throw new Error("schema sai định dạng (thiếu bindings[])");
+	if (schema.error) throw new Error(`schema error: ${schema.error}`);
+	if (!Array.isArray(schema.bindings)) throw new Error("malformed schema (missing bindings[])");
 
 	const { dts, js } = emitBindings(schema);
 
@@ -35,5 +35,5 @@ export function runBindings(dir) {
 	writeFileSync(join(cfg.bindingsDir, "bindings.js"), js);
 
 	const names = schema.bindings.map((b) => b.name).join(", ");
-	console.log(`✓ sinh ${schema.bindings.length} bindings (${names}) → ${cfg.bindingsDir}`);
+	console.log(`✓ generated ${schema.bindings.length} bindings (${names}) → ${cfg.bindingsDir}`);
 }

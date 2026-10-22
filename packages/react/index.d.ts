@@ -1,7 +1,7 @@
 // @hfd/react — TypeScript types.
 //
-// Phiên bản generic mềm: app có thể narrow qua HFDHandlers từ bindings codegen
-// (hfd bindings) bằng wrapper type riêng, ví dụ:
+// Soft generic version: apps can narrow it via HFDHandlers from the bindings
+// codegen (hfd bindings) with their own wrapper types, e.g.:
 //
 //   type Call = <K extends keyof HFDHandlers>(n: K, a: HFDHandlers[K][0])
 //     => Promise<HFDHandlers[K][1]>;

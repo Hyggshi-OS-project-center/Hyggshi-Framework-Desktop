@@ -11,7 +11,7 @@ export function runBuild(dir) {
 			stdio: "inherit",
 			shell: true,
 		});
-		if (r.status !== 0) throw new Error("build frontend thất bại");
+		if (r.status !== 0) throw new Error("frontend build failed");
 	}
 
 	console.log(`▸ build app Go: ${cfg.goBuild}`);
@@ -21,6 +21,6 @@ export function runBuild(dir) {
 		shell: true,
 		env: goEnv(),
 	});
-	if (r2.status !== 0) throw new Error("build Go thất bại");
+	if (r2.status !== 0) throw new Error("Go build failed");
 	console.log("✓ build xong");
 }

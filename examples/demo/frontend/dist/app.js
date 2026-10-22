@@ -1,5 +1,5 @@
-// app.js — gọi qua window.hfdAPI (được bindings.js codegen set, có types
-// ở bindings.d.ts — xem frontend/dist/hfd/).
+// app.js — calls via window.hfdAPI (set by generated bindings.js, typed in
+// bindings.d.ts — see frontend/dist/hfd/).
 const $ = (id) => document.getElementById(id);
 const api = () => window.hfdAPI;
 
@@ -7,8 +7,8 @@ const show = (el, data) => {
 	el.textContent = typeof data === "string" ? data : JSON.stringify(data, null, 2);
 };
 
-// ---- auto-probe: chạy ngay khi load — kiểm chứng chuỗi runtime inject →
-// bindings codegen → IPC native reply mà không cần bấm gì cả.
+// ---- auto-probe: runs on load — proves the chain runtime inject →
+// bindings codegen → native-reply IPC without any clicks.
 const boot = $("boot");
 boot.textContent = "…calling SysInfo over the native-reply IPC…";
 
@@ -54,7 +54,7 @@ $("tick").addEventListener("click", async () => {
 		show($("tick-result"), `done — ${t.note}`);
 		ticksOn = false;
 	});
-	await api().call("StartTick", { times: 3 }); // times từ JS → Go typed!
+	await api().call("StartTick", { times: 3 }); // typed JS → Go!
 });
 
 // ---- Phase 4: native API demos
@@ -91,7 +91,7 @@ $("notify").addEventListener("click", async () => {
 	res.sent ? show(nat, "notification ✓ — check your desktop") : show(nat, "✗ " + res.err);
 });
 
-// ---- tray (cần binary build với -tags hfd_tray + shell hỗ trợ SNI)
+// ---- tray (requires a binary built with -tags hfd_tray + an SNI-capable shell)
 api().on("tray", ({ action }) => {
 	console.log("[hfd] tray event:", action);
 	if (action === "__activate") { show($("menu-result"), "tray icon clicked"); return; }

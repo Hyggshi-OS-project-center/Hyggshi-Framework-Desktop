@@ -1,23 +1,23 @@
-// @hfd/react — hooks cho HFD: gọi handler Go type-safe + lắng nghe event Go→JS.
+// @hfd/react — hooks for HFD: call Go handlers type-safe + listen to Go→JS events.
 //
-// Yêu cầu: runtime JS đã được Go core inject (window.hfd) và bindings codegen
-// cho types chặt qua HFDHandlers map.
+// Requires: the Go core has injected the JS runtime (window.hfd) and the
+// bindings codegen for strict types via the HFDHandlers map.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-/** Gọi handler Go (wrap window.hfd.call). */
+/** Call a Go handler (wraps window.hfd.call). */
 export function call(name, args) {
 	return window.hfd.call(name, args);
 }
 
-/** Đăng ký event Go → JS; trả về hàm unsubscribe. */
+/** Subscribe to a Go → JS event; returns an unsubscribe function. */
 export function on(name, cb) {
 	return window.hfd.on(name, cb);
 }
 
 /**
- * useHfdEvent — lắng nghe event Go → JS.
- * Callback thay đổi không đăng ký lại (giữ ref nội bộ).
+ * useHfdEvent — listen to a Go → JS event.
+ * Changing the callback does not re-subscribe (kept in an internal ref).
  *
  * @example
  * useHfdEvent("tick", (t) => setCount(t.count));
@@ -34,8 +34,8 @@ export function useHfdEvent(name, cb) {
 }
 
 /**
- * useHfdCall — gọi handler Go khi mount, tự gọi lại khi args đổi
- * (so khớp bằng JSON key). Trả về { data, error, loading, refetch }.
+ * useHfdCall — calls a Go handler on mount and refetches when args change
+ * (matched via the JSON key). Returns { data, error, loading, refetch }.
  *
  * @example
  * const { data, loading } = useHfdCall("SysInfo", {});

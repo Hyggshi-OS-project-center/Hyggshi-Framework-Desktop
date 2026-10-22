@@ -3,9 +3,9 @@ import http from "node:http";
 import process from "node:process";
 import { loadConfig, goEnv } from "./config.mjs";
 
-// `hfd dev [dir]` — chạy frontend dev server, chờ port lên rồi chạy app Go
-// với HFD_DEV_URL=http://localhost:<port> (webview nạp dev server url,
-// runtime JS vẫn được Go inject vào).
+// `hfd dev [dir]` — starts the frontend dev server, waits for the port, then
+// runs the Go app with HFD_DEV_URL=http://localhost:<port> (the webview loads
+// the dev server URL; the JS runtime is still injected by Go).
 export function runDev(dir) {
 	const cfg = loadConfig(dir);
 
@@ -24,7 +24,7 @@ export function runDev(dir) {
 		const hasDevServer = !!cfg.frontendDev;
 		const env = { ...process.env };
 		if (hasDevServer) env.HFD_DEV_URL = devURL;
-		console.log(`▸ chạy app Go${hasDevServer ? ` với dev server ${devURL}` : ""}`);
+		console.log(`▸ running Go app${hasDevServer ? ` with dev server ${devURL}` : ""}`);
 		const p = spawn("go", ["run", "."], {
 			cwd: cfg.appDir,
 			stdio: "inherit",
@@ -49,7 +49,7 @@ export function runDev(dir) {
 		waitPort(cfg.frontendPort, 20000)
 			.then(startGo)
 			.catch(() => {
-				console.error("hfd: dev server không lên port kịp — thử chạy appGo luôn");
+				console.error("hfd: dev server did not come up in time — running the Go app anyway");
 				startGo();
 			});
 	} else {
