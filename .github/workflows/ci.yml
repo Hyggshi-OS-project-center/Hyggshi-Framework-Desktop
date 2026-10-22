@@ -49,10 +49,13 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev
       - name: go vet
+        working-directory: core
         run: go vet ./...
       - name: go build (core only)
+        working-directory: core
         run: go build ./...
       - name: go build (-tags hfd_tray)
+        working-directory: core
         run: go build -tags hfd_tray ./...
 
   # 3. Examples end-to-end: bindings codegen + frontend build + Go build
