@@ -1,108 +1,110 @@
-# Phase 5 — Backend Windows (WebView2) & macOS (WKWebView)
+# Phase 5 — Windows (WebView2) & macOS (WKWebView) backends
 
-Trạng thái: **scaffold**. `core/webview_windows.go` + `core/webview_darwin.go`
-đã tồn tại, compile được trên đúng nền tảng, nhưng **trả lỗi khi gọi** —
-việc triển khai thật cần VM/Mac vì không build/test chéo được từ Linux.
-Merge theo từng PR khi có môi trường.
+Status: **scaffold**. `core/webview_windows.go` + `core/webview_darwin.go`
+exist and compile on their target platforms, but every method **returns a
+descriptive error** — the real implementation needs a VM/Mac because we
+cannot build/test cross-platform from this Linux machine.
+Merge PR-by-PR as environments become available.
 
-## Điều kiện kích hoạt mỗi backend
+## Activation prerequisites per backend
 
-| Backend  | Cần                                                        | File đích                    |
-|----------|-------------------------------------------------------------|------------------------------|
-| Windows  | VM/PC Windows 10+ + Go + MSVC (biên dịch loader)            | `core/webview_windows.go`    |
-| macOS    | Mac, ưu tiên macOS 15+ (có `addScriptMessageHandlerWithReply`) | `core/webview_darwin.go`  |
+| Backend | Requires | Target file |
+|---|---|---|
+| Windows | Windows 10+ VM/PC, Go, MSVC (to build the loader) | `core/webview_windows.go` |
+| macOS | A Mac (macOS 15+ preferred for `addScriptMessageHandlerWithReply`) | `core/webview_darwin.go` |
 
-## Kiến trúc chung giữ nguyên giữa các backend
+## What stays identical across backends
 
-- **Cùng shape engine**: backend implement đủ `backend` interface
-  (`run/emit/setClipboard/…`) — tầng public API trong `hfd.go` không đổi.
-- **Cùng runtime JS** `runtime/hfd.js`: WebKit family (macOS) dùng nguyên
-  trạng; WebView2 dùng shim nhỏ bọc `chrome.webview.postMessage` thành
-  bridge cùng shape. Frontend + codegen không phân biệt nền tảng.
-- **Cùng security model**: per-launch token + allowlist origin + CSP meta.
-- **DevURL**: webview nạp địa chỉ dev server — `hfd dev` giữ nguyên logic.
+- **Same engine shape**: each backend implements the `backend` interface
+  (`run/emit/setClipboard/…`) — the public API layer in `hfd.go` is untouched.
+- **Same runtime JS** `runtime/hfd.js`: WebKit platforms (macOS) use it as-is;
+  WebView2 wraps `chrome.webview.postMessage` with a tiny shim so the bridge
+  keeps the same shape. Frontend + codegen are platform-agnostic.
+- **Same security model**: per-launch token + origin allowlist + CSP meta.
+- **DevURL**: the webview loads the dev server URL — `hfd dev` logic is unchanged.
 
 ## Windows — WebView2
 
-### Kiểm đầu (khi onboarding dev)
-`hfd doctor` (lệnh mới) kiểm: Windows 10+, Go, WebView2 Runtime đã cài
-(registry `HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-…}`)
-hoặc đóng gói fixed-version Runtime cùng app.
+### First-run checks (onboarding)
+`hfd doctor` (a new CLI command) checks: Windows 10+, Go, WebView2 Runtime
+installed (registry `HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-…}`)
+or a fixed-version Runtime shipped alongside the app.
 
-### Sơ đồ triển khai từng PR
-1. **Loader + COM**: cgo gọi WebView2Loader.dll (LoadLibrary +
-   `CreateCoreWebView2EnvironmentWithOptions`) — không C++ shim.
+### Implementation steps, one PR at a time
+1. **Loader + COM**: cgo calls into WebView2Loader.dll (LoadLibrary +
+   `CreateCoreWebView2EnvironmentWithOptions`) — no C++ shim.
 2. **Window + Controller**: `CreateWindowExW` →
-   `CreateCoreWebView2Controller` → `put_Bounds` (theo `WM_SIZE`).
-3. **Scheme/origin**: `SetVirtualHostNameToFolderMapping` — virtual host
-   `app.hfd` map vào embed FS; AllowOrigins mặc định đổi thành `https://app.hfd/*`
-   (allowlist vẫn hoạt động trước khi dispatch).
-4. **IPC**: `PostWebMessageAsJson` (Go→JS); JS shim bọc listener
-   `chrome.webview` event `message` (Go←JS). Promise reply dùng id-based
-   map (WebView2 không có native reply event như WebKitGTK 2.52).
-5. **Emit Go→JS**: `PostWebMessageAsJson` dạng `{type:"event",name,payload}`
-   — shim `_emit` nhận và dispatch cho listener.
-6. **Native API mapping**: clipboard (CF_UNICODETEXT), dialog
+   `CreateCoreWebView2Controller` → `put_Bounds` (on `WM_SIZE`).
+3. **Scheme/origin**: `SetVirtualHostNameToFolderMapping` — map the virtual
+   host `app.hfd` onto the embedded FS; default AllowOrigins becomes
+   `https://app.hfd/*` (allowlist check still runs before dispatch).
+4. **IPC**: `PostWebMessageAsJson` (Go→JS); the JS shim wraps the
+   `chrome.webview` `message` event (Go←JS). Promise replies use an
+   id-based map (WebView2 has no native reply event like WebKitGTK 2.52).
+5. **Emit Go→JS**: `PostWebMessageAsJson` shaped `{type:"event",name,payload}`
+   — the shim `_emit` demuxes to listeners.
+6. **Native API mapping**: clipboard (CF_UNICODETEXT), dialogs
    (IFileOpenDialog + COMDLG_FILTERSPEC), Notify (Shell_NotifyIconW/Win toast),
    SetTitle (SetWindowTextW), CloseWindow (WM_CLOSE), menu (CreateMenu).
 
-### Test plan Windows (chạy lại mỗi PR trên VM)
+### Windows test plan (rerun on the VM for every PR)
 ```
-A1  window mở đúng Options.Title; resize → webview bounds theo
-A2  reload: runtime inject lại đúng DOCUMENT_START
-A3  IPC roundtrip: BindEcho → JS call → Go → promise trả đúng giá trị
-A4  emit Go→JS: 5 tick đếm đủ trong listener JS
-A5  origin isolation: navigate tới data:text/html → window.hfd KHÔNG xuất hiện
-A6  token: đổi token bằng console → call bị từ chối
-A7  scheme: <img src="https://app.hfd/img.png"> nạp từ embed FS
-A8  clipboard: Set/Get qua các app khác
-A9  OpenFileDialog trả path thật; Cancel → canceled=true
-A10 filter dialog chỉ hiện đúng đuôi file
-A11 Notify (toast) hiện đúng, app không crash khi click
-A12 đóng window → Run() return nil, không còn process zombie
+A1  window opens with correct Options.Title; resize keeps webview bounds right
+A2  reload re-injects the runtime at DOCUMENT_START
+A3  IPC roundtrip: BindEcho → JS call → Go → promise resolves with the value
+A4  emit Go→JS: 5 ticks counted correctly in a JS listener
+A5  origin isolation: navigate to data:text/html → window.hfd is absent
+A6  token: tampering with the token from the console → call rejected
+A7  scheme: <img src="https://app.hfd/img.png"> loads from the embedded FS
+A8  clipboard: Set/Get across other apps
+A9  OpenFileDialog returns a real path; Cancel → canceled=true
+A10 dialog filter lists only allowed extensions
+A11 Notify (toast) shows; clicking it does not crash the app
+A12 closing the window → Run() returns nil, no zombie process
 ```
 
 ## macOS — WKWebView
 
-### Sơ đồ triển khai
-1. **Lifecycle**: NSApplication trên main thread (Go `LockOSThread` main);
-   callback ObjC → dispatch về goroutine Go tương đương pump hiện tại.
+### Implementation steps
+1. **Lifecycle**: NSApplication on the main thread (Go `LockOSThread`
+   main); ObjC callbacks dispatch back to a Go goroutine (same pump pattern).
 2. **Window + WKWebView**: NSWindow (FullSizeContentView) + WKWebView;
-   `userContentController.addUserScript` runtime (documentStart).
-3. **Scheme "hfd"**: `setURLSchemeHandler` (WKURLSchemeHandler) — serving
-   embed FS + mime map giống GTK backend.
-4. **IPC**: macOS 15+ dùng `addScriptMessageHandlerWithReply`
-   (promise-reply thật, tương đương GTK backend); macOS cũ rơi về id-based
-   reply qua `evaluateJavaScript`. Frontend không đổi.
-5. **Emit Go→JS**: `evaluateJavaScript` chạy `window.hfd._emit(…)`.
-6. **Native API mapping**: clipboard NSPasteboard; dialog NSOpenPanel/
+   `userContentController.addUserScript` as a documentStart user script.
+3. **The "hfd" scheme**: `setURLSchemeHandler` (WKURLSchemeHandler) —
+   serves the embedded FS with the same mime table as the GTK backend.
+4. **IPC**: on macOS 15+ use `addScriptMessageHandlerWithReply`
+   (true promise-reply, same as the GTK backend); older macOS falls back to
+   id-based replies via `evaluateJavaScript`. Frontend unchanged.
+5. **Emit Go→JS**: `evaluateJavaScript` runs `window.hfd._emit(…)`.
+6. **Native API mapping**: clipboard NSPasteboard; dialogs NSOpenPanel/
    NSSavePanel; Notify UNUserNotificationCenter; SetTitle window.title;
    menu NSMenu (title bar).
 
-### Test plan macOS (tương tự A1–A12, khác điểm scheme)
+### macOS test plan (mirrors the A1–A12 items, differing at the scheme)
 ```
-B1  window mở full-size contentView; retina không double-scale
-B2  runtime inject theo documentStart (nạp trước script app)
-B3  IPC roundtrip bằng reply handler thật (macOS 15+); fallback id-based chạy trên cũ
-B4  emit: event "tick"/"tray" đúng payload
-B5  origin: URI page khớp allowlist trước dispatch
-B6  token sai → từ chối
-B7  scheme hfd:// trả đúng mime cho CSS/JS/PNG
-B8  Pasteboard Set/Get (kể cả text từ app khác)
-B9  NSOpenPanel modal không block main thread (completion handler)
-B10 Save panel + Notify (cần Info.plist phù hợp khi đóng gói bundle)
-B11 NSApplication terminate → Go nhận exit 0
-B12 Retain/release các block ObjC — không leak qua callback nhiều lần
+B1  window opens full-size contentView; retina does not double-scale
+B2  runtime injects before app scripts (documentStart)
+B3  IPC roundtrip with a real reply handler (macOS 15+); id-based fallback on older
+B4  emit: "tick"/"tray" events with correct payloads
+B5  origin: page URI matches the allowlist before dispatch
+B6  wrong token → rejected
+B7  scheme hfd:// returns the right mime for CSS/JS/PNG
+B8  Pasteboard Set/Get (including text from other apps)
+B9  NSOpenPanel stays modal without blocking the main thread (completion handler)
+B10 Save panel + Notify (Info.plist requirements apply when bundling)
+B11 NSApplication terminate → Go observes exit 0
+B12 Retain/release of ObjC blocks — no leaks across repeated callbacks
 ```
 
-## Lộ trình PR
+## PR ladder per backend
 
-| PR | Windows                                          | macOS                                            |
-|----|--------------------------------------------------|--------------------------------------------------|
-| 1  | Loader + window + webview trắng                  | NSApp + NSWindow + WKWebView khởi động           |
-| 2  | VirtualHost → embed FS + runtime inject          | URLSchemeHandler + user script                   |
-| 3  | IPC roundtrip + emit                             | IPC roundtrip (reply 15+ / id-based fallback)    |
-| 4  | Native API đầy đủ + demo chạy                    | Native API đầy đủ + demo chạy                    |
-| 5  | Tray: Shell_NotifyIconW                          | Tray: NSStatusItem                               |
+| PR | Windows | macOS |
+|----|---------|-------|
+| 1  | Loader + window + blank webview | NSApp + NSWindow + WKWebView boot |
+| 2  | VirtualHost → embedded FS + runtime inject | URLSchemeHandler + user script |
+| 3  | IPC roundtrip + emit | IPC roundtrip (15+ reply handler / id-based fallback) |
+| 4  | Full native API set + running demo | Full native API set + running demo |
+| 5  | Tray: Shell_NotifyIconW | Tray: NSStatusItem |
 
-Mỗi PR phải có log/output chứng minh từng mục test — không pass trên niềm tin.
+Every PR must include logs/output that prove each test item — nothing
+passes on trust.

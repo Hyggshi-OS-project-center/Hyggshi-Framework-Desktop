@@ -1,90 +1,106 @@
 # HFD — Hyggshi Framework Desktop
 
-Framework desktop riêng, theo đúng spec của Hyggshi (không phụ thuộc API của Wails / Tauri):
+An in-house desktop framework, built exactly to Hyggshi's spec (no dependency
+on Wails/Tauri APIs):
 
-| Lớp | Công nghệ | Vai trò | Trạng thái |
+| Layer | Tech | Role | Status |
 |---|---|---|---|
-| `core/` | **Go** | Runtime + native API (cửa sổ, IPC, assets, events) | ✅ Phase 1 |
-| `hfd-cli/` (chưa dựng) | **TypeScript** | CLI: `hfd dev` / `hfd build` / `hfd new` / `hfd bindings` | Phase 2 |
-| frontend | **React/Vue** | Tùy chọn, chỉ phục vụ giao diện | Phase 3 |
-| `webview_gtk.go` | **GTK3 + WebKitGTK 4.1** | Cửa sổ + webview trên Linux | ✅ Phase 1 |
-| IPC | **postMessage (JS→Go) + evaluate_javascript (Go→JS)** | Cầu nối 2 chiều | ✅ Phase 1 |
-| Backend native khác | WKWebView (mac), WebView2 (Win) | Làm sau, cùng API Go | Phase 5 |
+| `core/` | **Go** | Runtime + native API (window, IPC, assets, events) | ✅ Phase 1 |
+| `hfd-cli/` | **TypeScript** | CLI: `hfd dev` / `hfd build` / `hfd new` / `hfd bindings` | ✅ Phase 2 |
+| frontend | **React/Vue** | Optional, UI only | ✅ Phase 3 |
+| `webview_gtk.go` | **GTK3 + WebKitGTK 4.1** | Window + webview on Linux | ✅ Phase 1 |
+| IPC | **postMessage (JS→Go) + evaluate_javascript (Go→JS)** | Two-way bridge | ✅ Phase 1 |
+| Other native backends | WKWebView (mac), WebView2 (Win) | Later, same Go API | Phase 5 |
 
-## API công khai (Phase 1)
+## Public API (Phase 1)
 
 Go side:
 ```go
-hfd.Bind("Greet", func(args string) (any, error) { ... })  // đăng ký handler, nhận JSON-in
+hfd.Bind("Greet", func(args string) (any, error) { ... })  // register handler, JSON-in
 hfd.Emit("tick", map[string]any{"n": 3})                   // Go → JS event
-hfd.Run(hfd.Options{Title, Width, Height, Assets, Debug})   // mở cửa sổ, block đến khi đóng
+hfd.Run(hfd.Options{Title, Width, Height, Assets, Debug})   // open window, blocks until closed
 ```
 
-JS side (runtime nhúng sẵn `__runtime/hfd.js`):
+JS side (runtime auto-embedded `runtime/hfd.js`):
 ```js
-const msg = await hfd.call("Greet", { name: "Hi" })        // Go → trả JSON
-hfd.on("tick", (data) => render(data))                      // bắt event Go → UI
+const msg = await hfd.call("Greet", { name: "Hi" })        // Go returns JSON
+hfd.on("tick", (data) => render(data))                      // receive Go events → UI
 ```
 
-## Cơ chế IPC
+## IPC mechanics
 
-1. **JS → Go**: JS gọi `window.webkit.messageHandlers.ipc.postMessage(JSON.stringify({...}))`
-   → WebKit bắn tín hiệu `script-message-received::ipc` (payload là `JSCValue`)
-   → cgo bọc Go callback, nhận string, parse JSON, dispatch handler đã `Bind` (chạy trong goroutine riêng).
-2. **Go → JS**: handler xử lý song song, trả về → Marshal JSON
-   → dùng `webkit_web_view_evaluate_javascript("window.hfd._resolve(<id>, <json>)")` (chỉ chạy trên GTK main thread, marshal qua idle pump).
-3. **Assets**: cái thông qua custom URI scheme `hfd://app/...` — đọc từ `embed.FS` của app
-   (cùng mức như Wails nhưng do ta đăng ký handler bằng `webkit_web_context_register_uri_scheme`).
+1. **JS → Go**: JS calls
+   `window.webkit.messageHandlers.hfd.postMessage(JSON.stringify({...}))`
+   → WebKit fires `script-message-with-reply-received::hfd` with a reply
+   object (payload is a `JSCValue`)
+   → cgo wraps a Go callback, extracts the string, parses JSON, dispatches
+   the `Bind`ed handler (in its own goroutine), then completes the JS promise
+   via `webkit_script_message_reply_return_value` — a real awaits-the-answer
+   Promise, not a synthesized resolve.
+2. **Go → JS**: `webkit_web_view_evaluate_javascript("window.hfd._emit(...)")`
+   (must run on the GTK main thread, marshaled via the idle pump).
+3. **Assets**: served through the custom URI scheme `hfd://app/...` — read
+   from the app's `embed.FS` (registered via
+   `webkit_web_context_register_uri_scheme`).
 
-## Constraints biên dịch
+## Build constraints
 
-- Linux cần `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libsoup-3.0-dev` (Ubuntu 24.04+ đều dùng 4.1).
-- Thêm tag cũ 4.0 sau (Phase 5) qua build tag.
-- macOS/Windows: stub `unsupported.go` cho tới khi hỗ trợ.
+- Linux needs `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libsoup-3.0-dev`
+  (Ubuntu 24.04+ ships 4.1).
+- Tray requires `-tags hfd_tray` (pulls in `godbus`); the default build
+  keeps the core at 0 external deps.
+- macOS/Windows: scaffolds in `core/webview_darwin.go`/
+  `core/webview_windows.go` — they compile on the target platform but
+  return a descriptive error until Phase 5 lands (needs a VM/Mac).
 
 ## Roadmap
 
-- **Phase 1 ✅**: Linux core, IPC 2 chiều, strings/objects, protocol `hfd://`, demo vanilla.
-- **Phase 2 ✅**: `hfd-cli` (TypeScript ESM, 0 dep):
-  - `hfd bindings` — chạy `HFD_CODEGEN=bindings go run .` thu schema JSON (core dùng
-    `BindTyped[In, Out]` + reflect) → sinh `bindings.d.ts` + `bindings.js`.
-  - `hfd build` — build frontend (tùy cấu hình) + `go build -o build/bin/`.
-  - `hfd dev` — frontend dev server + env `HFD_DEV_URL` cho webview nạp dev URL.
-  - runtime inject tự động qua WebKit user script `DOCUMENT_START` (frontend không
-    cần script tag); `Debug: true` bật console messages → stdout.
-- **Phase 3 ✅**: `packages/react` (`@hfd/react`) — hook `useHfdCall(auto/refetch)`,
-  `useHfdEvent(auto-unmount)`, `call/on` typed; tsc clean. `hfd new` scaffold
-  react + vue (vite, tsconfig, App demo dùng hooks). Demo `examples/react-demo`
-  đã build + chạy (useHfdCall gọi SysInfo ngay khi mount).
-- **Phase 4 ✅ (đầy đủ theo plan linux-hop)**: native API linux:
-  `OpenFileDialog/SaveFileDialog` (modal GTK + filter), `ShowMessage`
+- **Phase 1 ✅**: Linux core, two-way IPC, strings/objects, `hfd://` protocol,
+  vanilla demo.
+- **Phase 2 ✅**: `hfd-cli` (TypeScript ESM, 0 deps):
+  - `hfd bindings` — runs `HFD_CODEGEN=bindings go run .`, collects schema JSON
+    (core uses `BindTyped[In, Out]` + reflect) → generates `bindings.d.ts` +
+    `bindings.js`.
+  - `hfd build` — build frontend (per config) + `go build -o build/bin/`.
+  - `hfd dev` — frontend dev server + `HFD_DEV_URL` env so the webview loads
+    the dev URL.
+  - runtime auto-injected via WebKit user script `DOCUMENT_START` (no script
+    tag needed in the frontend); `Debug: true` pipes console messages to stdout.
+- **Phase 3 ✅**: `packages/react` (`@hfd/react`) — hooks `useHfdCall`
+  (auto/refetch), `useHfdEvent` (auto-unmount), typed `call/on`. `hfd new`
+  scaffolds React + Vue apps (vite, tsconfig, demo App using the hooks).
+  `examples/react-demo` builds and runs (useHfdCall calls SysInfo on mount).
+- **Phase 4 ✅ (full per Linux plan)**: native API on Linux:
+  `OpenFileDialog/SaveFileDialog` (modal GTK + filters), `ShowMessage`
   (info/warning/error/question), `SetClipboard/GetClipboard`, `Notify`
   (notify-send), `SetTitle`, `CloseWindow`, Menu bar (`Options.Menu` + event
-  `menu` → JS), **Tray** (`SetTray` — StatusNotifierItem + DBusMenu qua
-  godbus, sau build tag `-tags hfd_tray`; core mặc định vẫn 0 external dep).
-  Tray verified: đăng ký vào `org.kde.StatusNotifierWatcher` thành công,
-  object tiếp tục giữ >8s (shell host chấp nhận), GetAll properties chuẩn
-  signature `(ia{sv}av)` của layout. GNOME cần extension AppIndicator (đã có).
-- **Dev flow ✅**: `hfd dev` end-to-end trên react-demo — vite lên port → window
-  nạp `http://localhost:5173` qua `HFD_DEV_URL` → IPC hoạt động; sửa App.tsx
-  → vite bắn `hmr update` tự reload (không restart app).
-- **Phase 6 ✅** — security 3 tầng:
-  1. capability inject: user script chỉ inject trên origin pattern khớp
-     `Options.AllowOrigins` (mặc định `hfd://app/*` + `DevURL/*`) — origin lạ
-     không có bridge nào để gọi (negative test: AllowOrigins xa lạ → JS lỗi
-     `window.hfd undefined`, 0 IPC tới Go).
-  2. URI check: mỗi IPC kèm URI page; Go khớp glob (constant-time không,
-     glob) trước dispatch — phòng bridge nhờ lẫn qua frame.
-  3. per-launch token: `crypto/rand` 32B hex, inject cùng runtime
-     (`window.__HFD_CONFIG`), mọi IPC phải mang token đúng — compare bằng
-     `crypto/subtle.ConstantTimeCompare`. Token khác → từ chối.
-  CSP: `Options.CSP` → inject `<meta http-equiv>` rất sớm (DOCUMENT_START
-  chạy trước script app). CSP strict demo đã chạy không phá IPC.
+  `menu` → JS), **Tray** (`SetTray` — StatusNotifierItem + DBusMenu via
+  godbus, behind build tag `-tags hfd_tray`; default build keeps the core at
+  0 external deps).
+  Tray verified: registered with `org.kde.StatusNotifierWatcher`,
+  the entry survives >8s (shell host accepts it), GetAll properties match
+  the `(ia{sv}av)` layout signature. GNOME needs the AppIndicator extension
+  (already installed here).
+- **Dev flow ✅**: `hfd dev` end-to-end on react-demo — vite serves on its
+  port → the window loads `http://localhost:5173` via `HFD_DEV_URL` → IPC
+  works; editing App.tsx → vite fires `hmr update` and reloads without
+  restarting the app.
+- **Phase 6 ✅** — 3-layer security:
+  1. capability injection: the user script injects only on origin patterns
+     matching `Options.AllowOrigins` (defaults `hfd://app/*` + `DevURL/*`) —
+     a foreign origin has no bridge to call (negative test: unknown
+     AllowOrigins → JS error `window.hfd undefined`, 0 IPCs reach Go).
+  2. URI check: every IPC carries the page URI; Go glob-matches it before
+     dispatch — guards against a stray bridge living in another frame.
+  3. per-launch token: `crypto/rand` 32B hex, injected together with the
+     runtime (`window.__HFD_CONFIG`), every IPC must carry the correct token —
+     compared with `crypto/subtle.ConstantTimeCompare`. Wrong token → reject.
+  CSP: `Options.CSP` → injects `<meta http-equiv>` very early (DOCUMENT_START
+  runs before app scripts). The strict-CSP demo runs without breaking IPC.
 - **Phase 5 scaffold ✅**: `core/webview_windows.go` (WebView2) +
   `core/webview_darwin.go` (WKWebView) + `docs/PHASE5-BACKENDS.md`
-  (kiến trúc per-PR + 12 mục test plan/backend). Cross-compile verified:
-  `GOOS=windows go build` ✓, `GOOS=darwin go build` ✓ — chưa chạy được
-  mà chỉ stub trả lỗi có hướng dẫn; gọi cụm khi có VM/Mac.
-- **Phase 3**: `@hfd/react` — hook `useHfdCall` / `useHfdEvent`; template React/Vue cho `hfd new`.
-- **Phase 5**: backend mac (WKWebView) / win (WebView2) — scaffold sẵn, awaiting VM.
-- **Tiếp theo**: packaging (deb/AppImage), menu context, portal/GNotification, `hfd doctor`.
+  (per-PR architecture + 12-item test plan per backend). Cross-compile
+  verified: `GOOS=windows go build` ✓, `GOOS=darwin go build` ✓ — stubs
+  return a descriptive error until a VM/Mac is available.
+- **Next up**: packaging (deb/AppImage), context menu, portal/GNotification,
+  `hfd doctor`.
